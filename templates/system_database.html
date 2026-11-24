@@ -1,0 +1,57 @@
+{% extends "system_layout.html" %}
+
+{% block title %}EDUGUIDE | System Database{% endblock %}
+{% block page_title %}{{ 'قاعدة البيانات' if session.get('lang', 'en') == 'ar' else 'Database Management' }}{% endblock %}
+
+{% block content %}
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+<style>
+  .sys-header { margin-bottom:26px; display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:14px; }
+  .sys-header h1 { font-size:26px; font-weight:800; color:var(--text-main); margin-bottom:6px; }
+  .sys-header p { color:var(--text-muted); font-size:14px; font-weight:500; }
+  .db-card { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:26px; margin-bottom:20px; }
+  .db-status { display:inline-flex; align-items:center; gap:8px; background:rgba(16,185,129,0.1); color:#10b981; padding:7px 14px; border-radius:20px; font-weight:800; font-size:13px; margin-bottom:18px; }
+  .meta-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:14px; margin-bottom:10px; }
+  .meta-box { background:var(--bg); border:1px solid var(--border); border-radius:14px; padding:14px 16px; }
+  .meta-box .lbl { font-size:11.5px; color:var(--text-muted); font-weight:700; text-transform:uppercase; margin-bottom:6px; }
+  .meta-box .val { font-size:16px; font-weight:800; color:var(--text-main); }
+  .btn-primary { background:var(--primary); color:#fff; padding:12px 20px; border:none; border-radius:12px; font-weight:700; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; text-decoration:none; }
+  .btn-primary:hover { background:var(--primary-dark); }
+  .tbl-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:10px; margin-top:14px; }
+  .tbl-pill { display:flex; justify-content:space-between; align-items:center; background:var(--bg); border:1px solid var(--border); padding:10px 14px; border-radius:10px; font-size:13px; font-weight:600; }
+  .tbl-pill span:last-child { background:rgba(79,70,229,0.1); color:var(--primary); padding:2px 8px; border-radius:6px; font-weight:800; font-size:12px; }
+</style>
+
+<div class="sys-header">
+  <div>
+    <h1>{{ 'حالة قاعدة البيانات والنسخ الاحتياطي' if is_ar else 'Live Database Telemetry & Backups' }}</h1>
+    <p>{{ 'مراقبة حقيقية لحالة الخادم والجداول وتنزيل نسخ احتياطية فورية' if is_ar else 'Real-time database health, table counts, and instant JSON snapshot backups.' }}</p>
+  </div>
+  <a href="{{ url_for('system_database_backup') }}" class="btn-primary">
+    <i class="fas fa-download"></i> {{ 'تحميل نسخة احتياطية (JSON)' if is_ar else 'Download Live Backup (JSON)' }}
+  </a>
+</div>
+
+<div class="db-card">
+  <div class="db-status"><i class="fas fa-check-circle"></i> {{ 'متصل ويعمل بكفاءة' if is_ar else 'Online & Healthy' }}</div>
+  <div class="meta-grid">
+    <div class="meta-box"><div class="lbl">{{ 'المحرك' if is_ar else 'Engine' }}</div><div class="val">{{ db_info.engine }}</div></div>
+    <div class="meta-box"><div class="lbl">{{ 'قاعدة البيانات' if is_ar else 'Database' }}</div><div class="val">{{ db_info.db_name }}</div></div>
+    <div class="meta-box"><div class="lbl">{{ 'زمن الاستجابة' if is_ar else 'Live Latency' }}</div><div class="val">{{ db_info.latency_ms }} ms</div></div>
+    <div class="meta-box"><div class="lbl">{{ 'عدد الجداول' if is_ar else 'Tables' }}</div><div class="val">{{ db_info.table_count }}</div></div>
+    <div class="meta-box"><div class="lbl">{{ 'إجمالي السجلات' if is_ar else 'Total Rows' }}</div><div class="val">{{ db_info.total_rows }}</div></div>
+  </div>
+</div>
+
+<div class="db-card">
+  <h3 style="font-size:16px; font-weight:800; margin-bottom:6px;"><i class="fas fa-table" style="color:var(--primary);"></i> {{ 'الجداول والسجلات الحية' if is_ar else 'Live Table Row Counts' }}</h3>
+  <div class="tbl-grid">
+    {% for t in db_info.tables %}
+    <div class="tbl-pill">
+      <span>{{ t.name }}</span>
+      <span>{{ t.rows }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

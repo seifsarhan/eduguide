@@ -1,0 +1,68 @@
+{% extends "system_layout.html" %}
+
+{% block title %}EDUGUIDE | University Demo Requests (B2B){% endblock %}
+{% block page_title %}{{ 'طلبات عرض الجامعات' if session.get('lang', 'en') == 'ar' else 'University B2B Demo Requests' }}{% endblock %}
+
+{% block content %}
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+<style>
+  .sys-header { margin-bottom:24px; }
+  .sys-header h1 { font-size:26px; font-weight:800; color:var(--text-main); margin-bottom:6px; }
+  .sys-header p { color:var(--text-muted); font-size:14px; }
+  .table-panel { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:20px; overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; padding:12px; font-size:11px; color:var(--text-muted); text-transform:uppercase; border-bottom:1px solid var(--border); }
+  td { padding:14px 12px; font-size:13.5px; font-weight:600; border-bottom:1px solid var(--border); }
+  [dir="rtl"] th { text-align:right; }
+  select { padding:6px 10px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text-main); font-weight:700; font-size:12px; }
+  .btn-upd { background:var(--primary); color:#fff; border:none; padding:6px 12px; border-radius:8px; font-weight:700; font-size:12px; cursor:pointer; }
+</style>
+
+<div class="sys-header">
+  <h1><i class="fas fa-handshake" style="color:var(--primary);"></i> {{ 'طلبات التعاقد والعرض التجريبي للجامعات' if is_ar else 'University Demo & Partnership Pipeline' }}</h1>
+  <p>{{ 'متابعة الجامعات المهتمة بتشغيل منصة إيديوجايد وتحديث حالة التواصل' if is_ar else 'Track incoming institutional demo inquiries submitted from the public B2B landing page.' }}</p>
+</div>
+
+<div class="table-panel">
+  <table>
+    <thead>
+      <tr>
+        <th>{{ 'الجامعة' if is_ar else 'University' }}</th>
+        <th>{{ 'جهة الاتصال' if is_ar else 'Contact' }}</th>
+        <th>{{ 'حجم الطلاب' if is_ar else 'Students' }}</th>
+        <th>{{ 'ملاحظات' if is_ar else 'Notes' }}</th>
+        <th>{{ 'التاريخ' if is_ar else 'Date' }}</th>
+        <th>{{ 'الحالة' if is_ar else 'Pipeline Status' }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for l in leads %}
+      <tr>
+        <td style="font-weight:800; color:var(--primary);">{{ l.university_name }}</td>
+        <td>
+          <div>{{ l.contact_name }} <span style="font-size:11.5px; color:var(--text-muted);">({{ l.role_title or 'Decision Maker' }})</span></div>
+          <div style="font-size:12px; color:var(--text-muted);">{{ l.email }} · {{ l.phone or '' }}</div>
+        </td>
+        <td>{{ l.student_count or 'N/A' }}</td>
+        <td style="color:var(--text-muted); font-size:12.5px; max-width:240px;">{{ l.notes or '-' }}</td>
+        <td style="color:var(--text-muted); font-size:12px;">{{ l.created_at }}</td>
+        <td>
+          <form method="POST" style="display:flex; gap:6px;">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="request_id" value="{{ l.id }}">
+            <select name="status">
+              {% for st in ['New', 'Contacted', 'Demo Scheduled', 'Closed Won'] %}
+                <option value="{{ st }}" {% if l.status == st %}selected{% endif %}>{{ st }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn-upd">{{ 'تحديث' if is_ar else 'Save' }}</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" style="text-align:center; padding:34px; color:var(--text-muted);">{{ 'لا توجد طلبات عروض من جامعات بعد.' if is_ar else 'No institutional demo requests received yet.' }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

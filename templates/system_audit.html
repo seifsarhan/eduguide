@@ -1,0 +1,77 @@
+{% extends "system_layout.html" %}
+
+{% block title %}EDUGUIDE | Security Audit Logs{% endblock %}
+{% block page_title %}{{ 'سجل المراقبة والأمان' if session.get('lang', 'en') == 'ar' else 'Security Audit Logs' }}{% endblock %}
+
+{% block content %}
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+<style>
+  .sys-top { display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px; margin-bottom:24px; }
+  .sys-top h1 { font-size:26px; font-weight:800; color:var(--text-main); margin-bottom:6px; }
+  .sys-top p { color:var(--text-muted); font-size:14px; font-weight:500; }
+  .toolbar { display:flex; gap:12px; margin-bottom:20px; }
+  .toolbar select { padding:10px 14px; border-radius:10px; border:1px solid var(--border); background:var(--surface); color:var(--text-main); font-family:inherit; font-weight:600; font-size:13px; min-width:240px; }
+  .btn-sys { padding:10px 16px; border-radius:11px; border:none; background:var(--primary); color:#fff; font-weight:700; font-size:13px; cursor:pointer; }
+  .table-panel { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:20px; overflow-x:auto; }
+  .data-table { width:100%; border-collapse:collapse; }
+  .data-table th { text-align:left; padding:12px 14px; font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; border-bottom:1px solid var(--border); }
+  .data-table td { padding:13px 14px; font-size:13px; font-weight:600; color:var(--text-main); border-bottom:1px solid var(--border); }
+  .data-table tr:last-child td { border-bottom:none; }
+  [dir="rtl"] .data-table th { text-align:right; }
+  .badge-act { padding:4px 9px; border-radius:7px; font-weight:800; font-size:11px; background:rgba(79,70,229,0.1); color:var(--primary); }
+  .badge-act.warn { background:rgba(239,68,68,0.1); color:#ef4444; }
+  .badge-act.ok { background:rgba(16,185,129,0.1); color:#10b981; }
+</style>
+
+<div class="sys-top">
+  <div>
+    <h1>{{ 'سجل الرقابة والتدقيق (Audit Trail)' if is_ar else 'Enterprise Security Audit Log' }}</h1>
+    <p>{{ 'تتبع كل عمليات تعديل الدرجات، الدخول، الاستيراد، وإدارة الحسابات بالوقت والـ IP' if is_ar else 'Immutable log of grade changes, logins, imports, and administrative actions.' }}</p>
+  </div>
+</div>
+
+<form class="toolbar" method="GET" action="{{ url_for('system_audit') }}">
+  <select name="action">
+    <option value="">{{ 'كل العمليات' if is_ar else 'All Actions' }}</option>
+    {% for a in actions %}
+      <option value="{{ a }}" {% if action_filter == a %}selected{% endif %}>{{ a }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn-sys"><i class="fas fa-filter"></i> {{ 'تصفية' if is_ar else 'Filter' }}</button>
+</form>
+
+<div class="table-panel">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>{{ 'التوقيت' if is_ar else 'Timestamp' }}</th>
+        <th>{{ 'المستخدم' if is_ar else 'Actor' }}</th>
+        <th>{{ 'الدور' if is_ar else 'Role' }}</th>
+        <th>{{ 'العملية' if is_ar else 'Action' }}</th>
+        <th>{{ 'التفاصيل' if is_ar else 'Details' }}</th>
+        <th>IP</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+      <tr>
+        <td style="color:var(--text-muted); white-space:nowrap;">{{ log.created_at }}</td>
+        <td>{{ log.actor_name }} <span style="font-size:11px; color:var(--text-muted);">({{ log.actor_id }})</span></td>
+        <td style="text-transform:uppercase; font-size:11.5px; color:var(--text-muted);">{{ log.actor_role }}</td>
+        <td>
+          <span class="badge-act {% if 'FAILED' in log.action or 'BLOCKED' in log.action or 'DELETED' in log.action %}warn{% elif 'SUCCESS' in log.action or 'CREATED' in log.action %}ok{% endif %}">
+            {{ log.action }}
+          </span>
+        </td>
+        <td>{{ log.details }}</td>
+        <td style="color:var(--text-muted); font-family:monospace; font-size:12px;">{{ log.ip_address }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="6" style="text-align:center; padding:30px; color:var(--text-muted);">{{ 'لا توجد سجلات حتى الآن' if is_ar else 'No audit records logged yet.' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

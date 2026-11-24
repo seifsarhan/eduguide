@@ -1,0 +1,21 @@
+.env
+__pycache__/
+*.pyc
+venv/
+.venv/
+.pytest_cache/
+instance/
+.vscode/
+.idea/
+static/uploads/
+temp_uploads/
+*.zip
+*.db
+
+# Database dumps and scratch files can contain real user data — keep them local
+*.sql
+scratch/
+empty_files_list.txt
+*.log
+.DS_Store
+Thumbs.db

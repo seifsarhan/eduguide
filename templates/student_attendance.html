@@ -1,0 +1,102 @@
+{% extends "dashboard_layout.html" %}
+
+{% block title %}EDUGUIDE | Attendance & Check-In{% endblock %}
+{% block page_title %}{{ 'الحضور والغياب الذكي' if session.get('lang', 'en') == 'ar' else 'Smart QR Attendance' }}{% endblock %}
+
+{% block content %}
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+<style>
+  .att-wrap { max-width:1150px; margin:0 auto; }
+  .checkin-card { background:linear-gradient(135deg, var(--primary), var(--primary-dark)); color:#fff; border-radius:22px; padding:28px; margin-bottom:24px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:20px; }
+  .checkin-card h2 { font-size:22px; font-weight:800; margin-bottom:6px; }
+  .checkin-card p { opacity:0.9; font-size:14px; }
+  .checkin-form { display:flex; gap:10px; flex-wrap:wrap; }
+  .checkin-form input { padding:13px 18px; border-radius:12px; border:none; font-size:16px; font-weight:800; letter-spacing:3px; text-transform:uppercase; width:190px; color:#0f172a; }
+  .checkin-form button { padding:13px 22px; border-radius:12px; border:none; background:#fff; color:var(--primary); font-weight:800; font-size:14px; cursor:pointer; }
+
+  .att-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:18px; margin-bottom:24px; }
+  .att-card { background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:20px; }
+  .att-top { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:12px; }
+  .att-title { font-size:16px; font-weight:800; color:var(--text-main); }
+  .risk-pill { padding:4px 10px; border-radius:8px; font-size:11.5px; font-weight:800; white-space:nowrap; }
+  .risk-pill.safe { background:rgba(16,185,129,0.12); color:#10b981; }
+  .risk-pill.warning { background:rgba(245,158,11,0.15); color:#d97706; }
+  .risk-pill.deprived { background:rgba(239,68,68,0.14); color:#ef4444; }
+  .bar-track { height:9px; background:var(--bg); border-radius:99px; overflow:hidden; margin:10px 0; border:1px solid var(--border); }
+  .bar-fill { height:100%; border-radius:99px; }
+  .att-meta { display:flex; justify-content:space-between; font-size:12.5px; font-weight:700; color:var(--text-muted); }
+
+  .panel { background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:22px; }
+  .panel h3 { font-size:16px; font-weight:800; margin-bottom:14px; }
+  .rec-table { width:100%; border-collapse:collapse; }
+  .rec-table th { text-align:left; padding:10px 12px; font-size:11.5px; color:var(--text-muted); text-transform:uppercase; border-bottom:1px solid var(--border); }
+  .rec-table td { padding:12px; font-size:13.5px; font-weight:600; border-bottom:1px solid var(--border); }
+  [dir="rtl"] .rec-table th { text-align:right; }
+</style>
+
+<div class="att-wrap">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}{% for cat, msg in messages %}
+  <div style="padding:14px 18px; border-radius:12px; margin-bottom:18px; font-weight:700;
+    background:{{ '#dcfce7' if cat == 'success' else ('#fef3c7' if cat == 'warning' else '#fee2e2') }};
+    color:{{ '#166534' if cat == 'success' else ('#92400e' if cat == 'warning' else '#991b1b') }};">{{ msg }}</div>
+  {% endfor %}{% endif %}{% endwith %}
+
+  <div class="checkin-card">
+    <div>
+      <h2><i class="fas fa-qrcode"></i> {{ 'تسجيل حضور المحاضرة الفوري' if is_ar else 'Instant Lecture QR Check-In' }}</h2>
+      <p>{{ 'أدخل كود المحاضرة المكوّن من 6 أحرف من شاشة الدكتور أو امسح الـ QR Code' if is_ar else 'Enter the 6-character session code shown by your professor or scan the lecture QR.' }}</p>
+    </div>
+    <form class="checkin-form" method="POST" action="{{ url_for('attendance_checkin') }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <input type="text" name="code" value="{{ prefill_code }}" maxlength="8" placeholder="A1B2C3" required>
+      <button type="submit"><i class="fas fa-check-circle"></i> {{ 'سجّل حضوري' if is_ar else 'Check In' }}</button>
+    </form>
+  </div>
+
+  <div class="att-grid">
+    {% for s in summary %}
+    <div class="att-card">
+      <div class="att-top">
+        <div class="att-title">{{ s.subject_name }}</div>
+        <span class="risk-pill {{ s.risk }}">
+          {% if s.risk == 'deprived' %}{{ 'حرمان (≥25%)' if is_ar else 'Deprivation Alert (≥25%)' }}
+          {% elif s.risk == 'warning' %}{{ 'إنذار غياب' if is_ar else 'Attendance Warning' }}
+          {% else %}{{ 'منتظم' if is_ar else 'Good Standing' }}{% endif %}
+        </span>
+      </div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:{{ s.present_pct }}%; background:{{ '#ef4444' if s.risk == 'deprived' else ('#f59e0b' if s.risk == 'warning' else '#10b981') }};"></div>
+      </div>
+      <div class="att-meta">
+        <span>{{ 'نسبة الحضور:' if is_ar else 'Attendance:' }} {{ s.present_pct }}%</span>
+        <span>{{ 'الغياب:' if is_ar else 'Absences:' }} {{ s.absences }} / {{ s.total_lectures }} ({{ s.absence_pct }}%)</span>
+      </div>
+    </div>
+    {% else %}
+    <div class="panel" style="grid-column:1 / -1; text-align:center; color:var(--text-muted);">
+      {{ 'لا توجد سجلات حضور بعد. سجّل حضورك بأول كود محاضرة.' if is_ar else 'No attendance records yet. Check in using your professor’s session code.' }}
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="panel">
+    <h3><i class="fas fa-history" style="color:var(--primary);"></i> {{ 'آخر تسجيلات الحضور بالـ QR' if is_ar else 'Recent QR Check-In History' }}</h3>
+    <table class="rec-table">
+      <thead><tr><th>{{ 'المقرر' if is_ar else 'Course' }}</th><th>{{ 'المحاضرة' if is_ar else 'Session' }}</th><th>{{ 'الحالة' if is_ar else 'Status' }}</th><th>{{ 'الوقت' if is_ar else 'Checked In At' }}</th></tr></thead>
+      <tbody>
+        {% for r in recent_records %}
+        <tr>
+          <td style="color:var(--primary); font-weight:800;">{{ r.course_id }} — {{ r.course_name }}</td>
+          <td>{{ r.session_title }}</td>
+          <td><span class="risk-pill safe">{{ r.status }}</span></td>
+          <td style="color:var(--text-muted);">{{ r.checked_in_at }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">{{ 'لا توجد جلسات مسجلة بعد' if is_ar else 'No check-ins recorded yet.' }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,101 @@
+{% extends "system_layout.html" %}
+
+{% block title %}EDUGUIDE | Universities (Multi-Tenant){% endblock %}
+{% block page_title %}{{ 'إدارة الجامعات' if session.get('lang', 'en') == 'ar' else 'Multi-Tenant Universities' }}{% endblock %}
+
+{% block content %}
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+<style>
+  .sys-top { display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px; margin-bottom:24px; }
+  .sys-top h1 { font-size:26px; font-weight:800; color:var(--text-main); margin-bottom:6px; }
+  .sys-top p { color:var(--text-muted); font-size:14px; font-weight:500; }
+  .btn-sys { padding:10px 16px; border-radius:11px; border:1px solid var(--border); background:var(--surface); color:var(--text-main); font-weight:700; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; text-decoration:none; }
+  .btn-sys.primary { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .btn-sys.danger { color:#ef4444; border-color:rgba(239,68,68,0.25); }
+  .uni-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(310px, 1fr)); gap:20px; }
+  .uni-card { background:var(--surface); border:1px solid var(--border); border-radius:20px; overflow:hidden; transition:0.2s; }
+  .uni-card:hover { transform:translateY(-3px); box-shadow:0 12px 24px rgba(0,0,0,0.05); }
+  .uni-banner { height:10px; width:100%; }
+  .uni-body { padding:22px; }
+  .uni-title { font-size:18px; font-weight:800; color:var(--text-main); margin-bottom:4px; }
+  .uni-slug { font-size:12.5px; color:var(--text-muted); font-weight:700; margin-bottom:14px; }
+  .uni-stats { display:flex; gap:16px; font-size:13px; font-weight:700; color:var(--text-main); margin-bottom:16px; }
+  .uni-footer { display:flex; justify-content:space-between; align-items:center; padding-top:12px; border-top:1px solid var(--border); }
+  .color-dots { display:flex; gap:6px; align-items:center; font-size:12px; color:var(--text-muted); font-weight:700; }
+  .dot { width:16px; height:16px; border-radius:50%; border:1px solid var(--border); }
+  .modal-bg { display:none; position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:3000; align-items:center; justify-content:center; padding:20px; }
+  .modal-bg.open { display:flex; }
+  .modal-box { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:28px; width:100%; max-width:480px; }
+  .modal-box h3 { font-size:18px; font-weight:800; margin-bottom:16px; }
+  .form-field { margin-bottom:12px; }
+  .form-field label { display:block; font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:6px; }
+  .form-field input { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--bg); color:var(--text-main); font-family:inherit; font-weight:600; font-size:13.5px; }
+  .modal-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:16px; }
+</style>
+
+<div class="sys-top">
+  <div>
+    <h1>{{ 'منظومة الجامعات (Multi-Tenant)' if is_ar else 'Onboarded Universities (Multi-Tenant)' }}</h1>
+    <p>{{ 'إدارة الجامعات المشتركة وهوية كل جامعة (الألوان، الطلاب، الدكاترة)' if is_ar else 'Onboard new universities with custom brand identities and tenant isolation.' }}</p>
+  </div>
+  <button type="button" class="btn-sys primary" onclick="document.getElementById('addUniModal').classList.add('open')">
+    <i class="fas fa-plus"></i> {{ 'إضافة جامعة جديدة' if is_ar else 'Onboard University' }}
+  </button>
+</div>
+
+<div class="uni-grid">
+  {% for u in universities %}
+  <div class="uni-card">
+    <div class="uni-banner" style="background: linear-gradient(90deg, {{ u.primary_color or '#4f46e5' }}, {{ u.secondary_color or '#3730a3' }});"></div>
+    <div class="uni-body">
+      <div class="uni-title">{{ u.name }}</div>
+      <div class="uni-slug">/{{ u.slug }} · {{ u.admin_email or 'No admin email' }}</div>
+      <div class="uni-stats">
+        <span><i class="fas fa-user-graduate" style="color:{{ u.primary_color or '#4f46e5' }};"></i> {{ u.student_count }} {{ 'طالب' if is_ar else 'Students' }}</span>
+        <span><i class="fas fa-chalkboard-teacher" style="color:{{ u.secondary_color or '#3730a3' }};"></i> {{ u.instructor_count }} {{ 'دكتور' if is_ar else 'Faculty' }}</span>
+      </div>
+      <div class="uni-footer">
+        <div class="color-dots">
+          <span class="dot" style="background:{{ u.primary_color or '#4f46e5' }};"></span>
+          <span class="dot" style="background:{{ u.secondary_color or '#3730a3' }};"></span>
+          <span>Brand Theme</span>
+        </div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          <a href="{{ url_for('university_welcome', slug=u.slug) }}" target="_blank" class="btn-sys primary" style="padding:6px 10px; font-size:12px;">
+            <i class="fas fa-external-link-alt"></i> {{ 'فتح البوابة' if is_ar else 'Open Portal' }}
+          </a>
+          <a href="{{ url_for('system_dashboard', university_id=u.id) }}" class="btn-sys" style="padding:6px 10px; font-size:12px;">
+            <i class="fas fa-chart-bar"></i> {{ 'الإحصائيات' if is_ar else 'Stats' }}
+          </a>
+          <form method="POST" action="{{ url_for('system_delete_university', uni_id=u.id) }}" onsubmit="return confirm('Remove university {{ u.name }}?');">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn-sys danger" style="padding:6px 10px; font-size:12px;"><i class="fas fa-trash"></i></button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="modal-bg" id="addUniModal">
+  <div class="modal-box">
+    <h3>{{ 'إضافة جامعة جديدة للمنصة' if is_ar else 'Onboard New University' }}</h3>
+    <form method="POST" action="{{ url_for('system_add_university') }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="form-field"><label>{{ 'اسم الجامعة' if is_ar else 'University Name' }}</label><input type="text" name="name" placeholder="Nile University" required></div>
+      <div class="form-field"><label>{{ 'المعرّف المختصر (Slug)' if is_ar else 'Short Slug' }}</label><input type="text" name="slug" placeholder="nu" required></div>
+      <div class="form-field"><label>{{ 'بريد مدير الجامعة (للدخول)' if is_ar else 'University Official Gateway Email' }}</label><input type="email" name="admin_email" placeholder="nu@edyguide.com" required></div>
+      <div class="form-field"><label>{{ 'كلمة مرور بوابة الجامعة' if is_ar else 'University Gateway Password' }}</label><input type="password" name="admin_password" value="123456" required></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="form-field"><label>{{ 'اللون الرئيسي' if is_ar else 'Primary Color' }}</label><input type="color" name="primary_color" value="#1d4ed8" style="height:42px; padding:4px;"></div>
+        <div class="form-field"><label>{{ 'اللون الثانوي' if is_ar else 'Secondary Color' }}</label><input type="color" name="secondary_color" value="#0f172a" style="height:42px; padding:4px;"></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-sys" onclick="document.getElementById('addUniModal').classList.remove('open')">{{ 'إلغاء' if is_ar else 'Cancel' }}</button>
+        <button type="submit" class="btn-sys primary">{{ 'إضافة الجامعة' if is_ar else 'Onboard' }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

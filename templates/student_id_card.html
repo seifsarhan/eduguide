@@ -1,0 +1,81 @@
+{% extends "dashboard_layout.html" %}
+
+{% block title %}EDUGUIDE | Digital Student ID Card{% endblock %}
+{% block page_title %}{{ 'الكارنيه الجامعي الرقمي' if session.get('lang', 'en') == 'ar' else 'Digital Campus ID Card' }}{% endblock %}
+
+{% block content %}
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+{% set uni_color = uni.primary_color if uni and uni.primary_color else '#1e4db7' %}
+{% set uni_sec = uni.secondary_color if uni and uni.secondary_color else '#0d3d96' %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  .id-shell { max-width:560px; margin:10px auto; text-align:center; }
+  .id-card { background:#fff; color:#0f172a; border-radius:26px; overflow:hidden; box-shadow:0 24px 60px rgba(15,23,42,0.16); border:1px solid var(--border); text-align:left; }
+  [dir="rtl"] .id-card { text-align:right; }
+  .id-top { background:linear-gradient(135deg, {{ uni_color }}, {{ uni_sec }}); color:#fff; padding:24px 28px; display:flex; justify-content:space-between; align-items:center; }
+  .id-uni { font-size:19px; font-weight:800; }
+  .id-sub { font-size:11.5px; opacity:0.85; letter-spacing:1.2px; text-transform:uppercase; margin-top:2px; }
+  .id-body { padding:26px 28px; display:flex; gap:22px; align-items:center; flex-wrap:wrap; }
+  .id-avatar { width:92px; height:92px; border-radius:20px; background:{{ uni_color }}; color:#fff; display:flex; align-items:center; justify-content:center; font-size:34px; font-weight:800; overflow:hidden; flex-shrink:0; border:3px solid #e2e8f0; }
+  .id-avatar img { width:100%; height:100%; object-fit:cover; }
+  .id-info h2 { font-size:21px; font-weight:800; margin:0 0 6px; color:#0f172a; }
+  .id-code { display:inline-block; padding:4px 10px; border-radius:8px; background:rgba(79,70,229,0.1); color:{{ uni_color }}; font-weight:800; font-size:13px; margin-bottom:10px; }
+  .id-meta { font-size:13px; color:#475569; font-weight:600; line-height:1.7; }
+  .id-bottom { background:#f8fafc; border-top:1px dashed #cbd5e1; padding:18px 28px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px; }
+  .id-actions { margin-top:20px; display:flex; justify-content:center; gap:12px; flex-wrap:wrap; }
+  .btn-id { padding:11px 20px; border-radius:12px; border:none; font-weight:800; font-size:13.5px; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:8px; }
+  @media print {
+    .sidebar, .global-header, .fab-container, .id-actions { display:none !important; }
+    .main-content { padding:0 !important; }
+  }
+</style>
+
+<div class="id-shell">
+  <div class="id-card">
+    <div class="id-top">
+      <div>
+        <div class="id-uni">{{ uni.name if uni else 'EDUGUIDE University' }}</div>
+        <div class="id-sub">{{ 'بطاقة طالب إلكترونية معتمدة' if is_ar else 'OFFICIAL DIGITAL STUDENT ID' }}</div>
+      </div>
+      <i class="fas fa-university" style="font-size:28px; opacity:0.9;"></i>
+    </div>
+
+    <div class="id-body">
+      <div class="id-avatar">
+        {% if user.profile_pic %}
+          <img src="{{ url_for('static', filename='uploads/' + user.profile_pic) }}" alt="{{ user.full_name }}">
+        {% else %}
+          {{ user.full_name[0]|upper }}
+        {% endif %}
+      </div>
+      <div class="id-info">
+        <h2>{{ user.full_name }}</h2>
+        <div class="id-code">{{ user.student_code }}</div>
+        <div class="id-meta">
+          <div><i class="fas fa-building"></i> {{ user.faculty or 'Faculty of Commerce' }}</div>
+          <div><i class="fas fa-layer-group"></i> {{ 'المستوى:' if is_ar else 'Level:' }} {{ user.level if (user.level and 'Year' in (user.level|string)) else ('Year ' ~ (user.level or 1)) }} · GPA {{ user.gpa or 'N/A' }}</div>
+          <div><i class="fas fa-check-circle" style="color:#10b981;"></i> {{ 'حالة القيد: مقيد ونشط 2026/2027' if is_ar else 'Status: Active Enrolled 2026/2027' }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="id-bottom">
+      <div style="font-size:12px; color:#64748b; max-width:260px;">
+        <strong style="color:#0f172a;">{{ 'كود دخول الحرم والمكتبة والامتحانات' if is_ar else 'Campus Gate, Library & Exam Access' }}</strong><br>
+        {{ 'امسح الـ QR للتحقق الفوري من هوية الطالب.' if is_ar else 'Scan QR code to verify active student enrollment.' }}<br>
+        <span style="font-family:monospace; font-size:11px;">SIG: {{ sig[:12]|upper }}</span>
+      </div>
+      <div id="student-id-qr" style="padding:8px; background:#fff; border-radius:12px; border:1px solid #e2e8f0;"></div>
+    </div>
+  </div>
+
+  <div class="id-actions">
+    <button onclick="window.print()" class="btn-id" style="background:{{ uni_color }}; color:#fff;"><i class="fas fa-print"></i> {{ 'طباعة الكارنيه' if is_ar else 'Print ID Card' }}</button>
+    <a href="{{ verify_url }}" target="_blank" class="btn-id" style="background:var(--surface); color:var(--text-main); border:1px solid var(--border);"><i class="fas fa-shield-alt"></i> {{ 'اختبار المسح الأمني' if is_ar else 'Test Gate Verification' }}</a>
+  </div>
+</div>
+
+<script>
+  new QRCode(document.getElementById("student-id-qr"), { text: "{{ verify_url }}", width: 92, height: 92 });
+</script>
+{% endblock %}

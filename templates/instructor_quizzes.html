@@ -1,0 +1,122 @@
+{% extends "instructor_layout.html" %}
+
+{% block title %}EDUGUIDE | AI Quiz Builder{% endblock %}
+{% block page_title %}{{ 'الاختبارات الأونلاين وتوليد الأسئلة بالـ AI' if session.get('lang', 'en') == 'ar' else 'Online Quizzes & AI Generator' }}{% endblock %}
+
+{% block content %}
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+<style>
+  .q-grid { display:grid; grid-template-columns:1.25fr 1fr; gap:22px; }
+  @media (max-width:980px) { .q-grid { grid-template-columns:1fr; } }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:24px; }
+  .card h2 { font-size:17px; font-weight:800; margin-bottom:14px; display:flex; align-items:center; gap:9px; }
+  .fg { margin-bottom:12px; }
+  .fg label { display:block; font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:5px; }
+  .fg input, .fg select { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--bg); color:var(--text-main); font-family:inherit; font-weight:600; }
+  .ai-box { background:rgba(79,70,229,0.06); border:1px dashed var(--primary); border-radius:14px; padding:16px; margin-bottom:16px; }
+  .btn { padding:10px 16px; border-radius:10px; border:none; font-weight:800; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:7px; }
+  .btn-primary { background:var(--primary); color:#fff; }
+  .btn-ok { background:#10b981; color:#fff; }
+  .q-preview { background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:10px; font-size:13px; }
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; padding:9px; font-size:11px; color:var(--text-muted); text-transform:uppercase; border-bottom:1px solid var(--border); }
+  td { padding:11px 9px; font-size:13px; font-weight:600; border-bottom:1px solid var(--border); }
+</style>
+
+<div class="q-grid">
+  <div class="card">
+    <h2><i class="fas fa-robot" style="color:var(--primary);"></i> {{ 'إنشاء اختبار أونلاين (بالذكاء الاصطناعي)' if is_ar else 'Create Auto-Graded Quiz (AI Powered)' }}</h2>
+
+    <div class="ai-box">
+      <div style="font-weight:800; font-size:13.5px; margin-bottom:10px; color:var(--primary);"><i class="fas fa-magic"></i> {{ 'مولّد الأسئلة الفوري بالـ AI' if is_ar else 'Instant AI MCQ Generator' }}</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <input type="text" id="aiTopic" placeholder="{{ 'موضوع المحاضرة (مثلاً: Balance Sheet Analysis)...' if is_ar else 'Topic (e.g., Balance Sheet Analysis)...' }}" style="flex:1; min-width:180px; padding:9px 12px; border-radius:9px; border:1px solid var(--border); background:var(--surface); color:var(--text-main);">
+        <input type="number" id="aiCount" value="4" min="2" max="10" style="width:65px; padding:9px; border-radius:9px; border:1px solid var(--border); background:var(--surface); color:var(--text-main);">
+        <button type="button" class="btn btn-primary" id="aiGenBtn" onclick="generateAiQuestions()"><i class="fas fa-sparkles"></i> {{ 'توليد' if is_ar else 'Generate' }}</button>
+      </div>
+    </div>
+
+    <form method="POST" onsubmit="return syncQuestionsBeforeSubmit()">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="questions_json" id="questions_json" value="[]">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div class="fg"><label>{{ 'المقرر' if is_ar else 'Course' }}</label>
+          <select name="course_id" required>{% for c in courses %}<option value="{{ c.course_id }}">{{ c.course_id }} — {{ c.name }}</option>{% endfor %}</select>
+        </div>
+        <div class="fg"><label>{{ 'مدة الاختبار (دقائق)' if is_ar else 'Time Limit (mins)' }}</label><input type="number" name="time_limit_mins" value="15" min="3" max="120"></div>
+      </div>
+      <div class="fg"><label>{{ 'عنوان الاختبار' if is_ar else 'Quiz Title' }}</label><input type="text" name="title" id="quizTitle" placeholder="Week 5 Online Quiz" required></div>
+
+      <div id="questionsList" style="margin:14px 0;"></div>
+
+      <button type="submit" class="btn btn-ok" style="width:100%; justify-content:center;"><i class="fas fa-paper-plane"></i> {{ 'نشر الاختبار للطلاب' if is_ar else 'Publish Auto-Graded Quiz' }}</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2><i class="fas fa-chart-bar" style="color:#10b981;"></i> {{ 'الاختبارات المنشورة والنتائج' if is_ar else 'Published Quizzes & Averages' }}</h2>
+    <table>
+      <thead><tr><th>{{ 'الاختبار' if is_ar else 'Quiz' }}</th><th>{{ 'الأسئلة' if is_ar else 'Qs' }}</th><th>{{ 'محاولات' if is_ar else 'Attempts' }}</th><th>{{ 'المتوسط' if is_ar else 'Avg %' }}</th></tr></thead>
+      <tbody>
+        {% for q in quizzes %}
+        <tr>
+          <td><strong>{{ q.course_id }}</strong> — {{ q.title }} <div style="font-size:11px; color:var(--text-muted);">{{ q.time_limit_mins }} mins</div></td>
+          <td>{{ q.q_count }}</td>
+          <td>{{ q.attempt_count }}</td>
+          <td style="color:#10b981; font-weight:800;">{{ (q.avg_pct ~ '%') if q.avg_pct is not none else '-' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" style="text-align:center; padding:24px; color:var(--text-muted);">{{ 'لا توجد اختبارات بعد' if is_ar else 'No quizzes published yet.' }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  let currentQuestions = [];
+  function renderQuestions() {
+    const wrap = document.getElementById('questionsList');
+    if (!currentQuestions.length) {
+      wrap.innerHTML = '<div style="font-size:12.5px; color:var(--text-muted); text-align:center; padding:12px;">Click "Generate" above to create MCQ questions with AI.</div>';
+      return;
+    }
+    wrap.innerHTML = currentQuestions.map((q, idx) => `
+      <div class="q-preview">
+        <div style="font-weight:800; margin-bottom:6px;">Q${idx+1}: ${q.question}</div>
+        <div style="font-size:12px; color:var(--text-muted);">A) ${q.a} | B) ${q.b} | C) ${q.c} | D) ${q.d}</div>
+        <div style="font-size:11.5px; color:#10b981; font-weight:800; margin-top:4px;">Correct Answer: ${q.correct}</div>
+      </div>
+    `).join('');
+  }
+  renderQuestions();
+
+  async function generateAiQuestions() {
+    const topic = document.getElementById('aiTopic').value.trim() || 'Financial Accounting';
+    const count = parseInt(document.getElementById('aiCount').value || '4', 10);
+    const btn = document.getElementById('aiGenBtn');
+    btn.disabled = true; btn.textContent = 'Generating...';
+    try {
+      const res = await fetch('/api/instructor/quizzes/ai-generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
+        body: JSON.stringify({ topic, count })
+      });
+      const data = await res.json();
+      if (data.questions) {
+        currentQuestions = data.questions;
+        if (!document.getElementById('quizTitle').value) document.getElementById('quizTitle').value = topic + ' Quiz';
+        renderQuestions();
+      }
+    } finally {
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-sparkles"></i> Generate';
+    }
+  }
+
+  function syncQuestionsBeforeSubmit() {
+    if (!currentQuestions.length) { alert('Please generate questions first!'); return false; }
+    document.getElementById('questions_json').value = JSON.stringify(currentQuestions);
+    return true;
+  }
+</script>
+{% endblock %}

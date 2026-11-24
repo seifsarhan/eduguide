@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="{{ 'ar' if session.get('lang', 'en') == 'ar' else 'en' }}"
+  dir="{{ 'rtl' if session.get('lang', 'en') == 'ar' else 'ltr' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ uni.name }} | Portal Login</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --uni-primary: {{ uni.primary_color or '#004072' }};
+      --uni-secondary: {{ uni.secondary_color or '#008489' }};
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family:'Plus Jakarta Sans', sans-serif;
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+      background:
+        {% if uni.bg_url %}
+          linear-gradient(135deg, rgba(15, 23, 42, 0.80), rgba(15, 23, 42, 0.68)),
+          url('{{ uni.bg_url }}') center/cover no-repeat fixed;
+        {% else %}
+          linear-gradient(135deg, var(--uni-primary) 0%, var(--uni-secondary) 100%);
+        {% endif %}
+      padding:24px 16px;
+    }
+    .top-link {
+      max-width:980px;
+      width:100%;
+      margin:0 auto 24px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      color:#fff;
+    }
+    .top-link a {
+      color:#fff;
+      text-decoration:none;
+      font-weight:700;
+      font-size:13.5px;
+      background:rgba(255,255,255,0.14);
+      border:1px solid rgba(255,255,255,0.25);
+      padding:9px 15px;
+      border-radius:11px;
+      display:inline-flex;
+      align-items:center;
+      gap:7px;
+    }
+    .login-card {
+      max-width:480px;
+      width:100%;
+      margin:auto;
+      background:var(--surface);
+      border-radius:26px;
+      padding:34px 30px;
+      box-shadow:0 30px 70px rgba(0,0,0,0.25);
+      border-top:6px solid var(--uni-primary);
+    }
+    .uni-head { text-align:center; margin-bottom:24px; }
+    .uni-badge {
+      width:78px;
+      height:78px;
+      border-radius:20px;
+      background:#ffffff;
+      color:var(--uni-primary);
+      border:2px solid var(--border);
+      box-shadow:0 8px 20px rgba(0,0,0,0.08);
+      margin:0 auto 14px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:800;
+      font-size:20px;
+      padding:8px;
+      overflow:hidden;
+    }
+    .uni-badge img { width:100%; height:100%; object-fit:contain; }
+    .uni-head h1 { font-size:22px; font-weight:800; color:var(--text); margin-bottom:4px; }
+    .uni-head p { font-size:13.5px; color:var(--muted); font-weight:600; }
+
+    .role-tabs { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-bottom:22px; }
+    .role-tab {
+      border:2px solid var(--border);
+      border-radius:12px;
+      padding:11px 6px;
+      text-align:center;
+      cursor:pointer;
+      font-weight:800;
+      font-size:12.5px;
+      color:var(--muted);
+      transition:0.2s;
+    }
+    .role-tab i { display:block; font-size:17px; margin-bottom:5px; }
+    .role-tab.active {
+      border-color:var(--uni-primary);
+      background:var(--uni-primary);
+      color:#fff;
+    }
+
+    .fg { margin-bottom:16px; }
+    .fg label { display:block; font-size:13px; font-weight:700; color:var(--text); margin-bottom:6px; }
+    .fg input {
+      width:100%;
+      padding:13px 15px;
+      border-radius:12px;
+      border:1.5px solid var(--border);
+      background:#f8fafc;
+      color:var(--text);
+      font-family:inherit;
+      font-size:14.5px;
+      font-weight:600;
+      outline:none;
+    }
+    .fg input:focus { border-color:var(--uni-primary); background:#fff; }
+    .btn-submit {
+      width:100%;
+      padding:14px;
+      border-radius:12px;
+      border:none;
+      background:var(--uni-primary);
+      color:#fff;
+      font-weight:800;
+      font-size:15px;
+      cursor:pointer;
+      margin-top:6px;
+    }
+    .alert {
+      padding:12px 14px;
+      border-radius:11px;
+      background:#fee2e2;
+      color:#991b1b;
+      font-weight:700;
+      font-size:13px;
+      margin-bottom:16px;
+    }
+    .foot-links { text-align:center; margin-top:18px; font-size:13px; color:var(--muted); }
+    .foot-links a { color:var(--uni-primary); font-weight:700; text-decoration:none; }
+  </style>
+</head>
+<body>
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+
+<div class="top-link">
+  <a href="{{ url_for('university_welcome', slug=uni.slug) }}">
+    <i class="fas fa-arrow-left"></i> {{ 'صفحة ترحيب ' ~ uni.name if is_ar else uni.name ~ ' Welcome' }}
+  </a>
+  <a href="{{ url_for('set_language', lang='en' if is_ar else 'ar', next=request.full_path) }}">
+    <i class="fas fa-globe"></i> {{ 'EN' if is_ar else 'AR' }}
+  </a>
+</div>
+
+<div class="login-card">
+  <div class="uni-head">
+    <div class="uni-badge">
+      {% if uni.logo_url %}
+        <img src="{{ uni.logo_url }}" alt="{{ uni.name }}">
+      {% else %}
+        {{ uni.initials }}
+      {% endif %}
+    </div>
+    <h1>{{ uni.name }}</h1>
+    <p>{{ 'تسجيل الدخول الآمن لبوابة الجامعة' if is_ar else 'Secure University Portal Sign In' }}</p>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}{% for cat, msg in messages %}
+    <div class="alert">{{ msg }}</div>
+  {% endfor %}{% endif %}{% endwith %}
+
+  <form method="POST" action="{{ url_for('university_login', slug=uni.slug) }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="role" id="roleInput" value="{{ default_role }}">
+
+    <div class="role-tabs">
+      <div class="role-tab {% if default_role == 'student' %}active{% endif %}" id="tab-student" onclick="pickRole('student')">
+        <i class="fas fa-user-graduate"></i>{{ 'طالب' if is_ar else 'Student' }}
+      </div>
+      <div class="role-tab {% if default_role == 'instructor' %}active{% endif %}" id="tab-instructor" onclick="pickRole('instructor')">
+        <i class="fas fa-chalkboard-teacher"></i>{{ 'دكتور' if is_ar else 'Instructor' }}
+      </div>
+      <div class="role-tab {% if default_role == 'system' %}active{% endif %}" id="tab-system" onclick="pickRole('system')">
+        <i class="fas fa-university"></i>{{ 'إدارة الجامعة' if is_ar else 'University Admin' }}
+      </div>
+    </div>
+
+    <div class="fg">
+      <label id="idLabel">{{ 'البريد الجامعي أو الكود' if is_ar else 'University Email or ID' }}</label>
+      <input type="text" name="identifier" id="idField" placeholder="student@{{ uni.slug }}.edu.eg" required>
+    </div>
+
+    <div class="fg">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <label>{{ 'كلمة المرور' if is_ar else 'Password' }}</label>
+        <a href="{{ url_for('forgot_password') }}" style="font-size:12px; font-weight:700; color:var(--uni-primary); text-decoration:none;">
+          {{ 'نسيت كلمة المرور؟' if is_ar else 'Forgot password?' }}
+        </a>
+      </div>
+      <input type="password" name="password" placeholder="••••••••" required>
+    </div>
+
+    <button type="submit" class="btn-submit">
+      <i class="fas fa-sign-in-alt"></i> {{ 'دخول البوابة' if is_ar else 'Sign In to ' ~ uni.name }}
+    </button>
+  </form>
+
+  <div class="foot-links">
+    {{ 'تواجه مشكلة في الدخول؟ تواصل مع الدعم الفني بالجامعة.' if is_ar else 'Need help signing in? Contact Campus IT Support.' }}
+  </div>
+</div>
+
+<script>
+  function pickRole(role) {
+    document.getElementById('roleInput').value = role;
+    ['student', 'instructor', 'system'].forEach(r => {
+      document.getElementById('tab-' + r).classList.toggle('active', r === role);
+    });
+    const field = document.getElementById('idField');
+    if (role === 'student') field.placeholder = 'Student Code or Email';
+    else if (role === 'instructor') field.placeholder = 'Instructor Email';
+    else field.placeholder = '{{ uni.admin_email or "admin@university.edu.eg" }}';
+  }
+  pickRole('{{ default_role }}');
+</script>
+</body>
+</html>

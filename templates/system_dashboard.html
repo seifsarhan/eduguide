@@ -1,0 +1,198 @@
+{% extends "system_layout.html" %}
+
+{% block title %}EDUGUIDE | System Control Panel{% endblock %}
+{% block page_title %}{{ 'لوحة تحكم النظام' if session.get('lang', 'en') == 'ar' else 'System Overview' }}{% endblock %}
+
+{% block content %}
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+<style>
+  .sys-header { margin-bottom:26px; display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px; }
+  .sys-header h1 { font-size:26px; font-weight:800; color:var(--text-main); margin-bottom:6px; letter-spacing:-0.5px; }
+  .sys-header p { color:var(--text-muted); font-size:14.5px; font-weight:500; }
+  .uni-filter { display:flex; gap:10px; align-items:center; }
+  .uni-filter select { padding:10px 14px; border-radius:11px; border:1px solid var(--border); background:var(--surface); color:var(--text-main); font-family:inherit; font-weight:700; font-size:13px; }
+  .uni-filter button { padding:10px 16px; border-radius:11px; border:none; background:var(--primary); color:#fff; font-weight:700; font-size:13px; cursor:pointer; }
+
+  .stats-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:18px; margin-bottom:26px; }
+  .stat-card { background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:20px; display:flex; align-items:center; gap:16px; transition:0.2s; text-decoration:none; }
+  .stat-card:hover { transform:translateY(-3px); border-color:var(--primary); }
+  .stat-icon { width:48px; height:48px; border-radius:13px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+  .stat-info h3 { font-size:23px; font-weight:800; color:var(--text-main); margin-bottom:2px; }
+  .stat-info p { font-size:12px; color:var(--text-muted); font-weight:700; margin:0; text-transform:uppercase; }
+
+  .charts-grid { display:grid; grid-template-columns:2fr 1fr; gap:20px; margin-bottom:26px; }
+  .bottom-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  @media (max-width:1024px) { .charts-grid, .bottom-grid { grid-template-columns:1fr; } }
+
+  .chart-panel, .table-panel { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:22px; }
+  .panel-title { font-size:15.5px; font-weight:800; color:var(--text-main); margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .chart-container { position:relative; height:280px; width:100%; }
+  .data-table { width:100%; border-collapse:collapse; }
+  .data-table th { text-align:left; padding:10px 12px; font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; border-bottom:1px solid var(--border); }
+  .data-table td { padding:12px; font-size:13px; font-weight:600; color:var(--text-main); border-bottom:1px solid var(--border); }
+  .data-table tr:last-child td { border-bottom:none; }
+  [dir="rtl"] .data-table th { text-align:right; }
+  .grade-badge { background:rgba(79,70,229,0.1); color:var(--primary); padding:4px 9px; border-radius:8px; font-weight:800; font-size:12px; }
+  .audit-badge { background:rgba(16,185,129,0.1); color:#10b981; padding:3px 8px; border-radius:6px; font-weight:800; font-size:11px; }
+</style>
+
+<!-- AI SMART INSIGHTS -->
+<div class="table-panel" id="aiStatsPanel" style="display:none; border-left:4px solid var(--primary); margin-bottom:24px;">
+  <div class="panel-title" style="margin-bottom:8px;">
+    <span><i class="fas fa-robot" style="color:var(--primary);"></i> {{ 'تحليلات إيديوجايد الذكية' if is_ar else 'EDUGUIDE AI Executive Summary' }}</span>
+  </div>
+  <p id="aiSummaryText" style="font-size:14.5px; color:var(--text-main); font-weight:600; line-height:1.6;"></p>
+</div>
+
+<div class="sys-header">
+  <div>
+    <h1>{{ 'النظرة العامة للمنصة' if is_ar else 'Multi-University Executive Overview' }}</h1>
+    <p>{{ 'إحصائيات حية للجامعات، الطلاب، الدكاترة، وسجل الأمان' if is_ar else 'Live telemetry across onboarded universities, students, faculty, and security.' }}</p>
+  </div>
+  <form class="uni-filter" method="GET" action="{{ url_for('system_dashboard') }}">
+    <select name="university_id">
+      <option value="">{{ 'جميع الجامعات (' ~ uni_count ~ ')' if is_ar else 'All Universities (' ~ uni_count ~ ')' }}</option>
+      {% for u in universities %}
+        <option value="{{ u.id }}" {% if selected_uni == (u.id|string) %}selected{% endif %}>{{ u.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit"><i class="fas fa-filter"></i> {{ 'تصفية' if is_ar else 'Apply' }}</button>
+  </form>
+</div>
+
+<!-- STATS CARDS -->
+<div class="stats-grid">
+  <a href="{{ url_for('system_universities') }}" class="stat-card">
+    <div class="stat-icon" style="background:rgba(79,70,229,0.1); color:#4f46e5;"><i class="fas fa-university"></i></div>
+    <div class="stat-info"><h3>{{ uni_count }}</h3><p>{{ 'الجامعات' if is_ar else 'Universities' }}</p></div>
+  </a>
+  <a href="{{ url_for('system_students') }}" class="stat-card">
+    <div class="stat-icon" style="background:rgba(37,99,235,0.1); color:#2563eb;"><i class="fas fa-users"></i></div>
+    <div class="stat-info"><h3>{{ st_count }}</h3><p>{{ 'الطلاب' if is_ar else 'Students' }}</p></div>
+  </a>
+  <a href="{{ url_for('system_faculty') }}" class="stat-card">
+    <div class="stat-icon" style="background:rgba(16,185,129,0.1); color:#10b981;"><i class="fas fa-chalkboard-teacher"></i></div>
+    <div class="stat-info"><h3>{{ ins_count }}</h3><p>{{ 'أعضاء التدريس' if is_ar else 'Faculty' }}</p></div>
+  </a>
+  <a href="{{ url_for('system_courses') }}" class="stat-card">
+    <div class="stat-icon" style="background:rgba(139,92,246,0.1); color:#8b5cf6;"><i class="fas fa-book"></i></div>
+    <div class="stat-info"><h3>{{ cr_count }}</h3><p>{{ 'المقررات' if is_ar else 'Courses' }}</p></div>
+  </a>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:rgba(245,158,11,0.1); color:#f59e0b;"><i class="fas fa-star"></i></div>
+    <div class="stat-info"><h3>{{ avg_gpa }}</h3><p>{{ 'متوسط الـ GPA' if is_ar else 'Avg GPA' }}</p></div>
+  </div>
+  <a href="{{ url_for('system_demo_requests') }}" class="stat-card">
+    <div class="stat-icon" style="background:rgba(236,72,153,0.1); color:#ec4899;"><i class="fas fa-handshake"></i></div>
+    <div class="stat-info"><h3>{{ demo_leads_count or 0 }}</h3><p>{{ 'طلبات جامعات جديدة' if is_ar else 'New B2B Leads' }}</p></div>
+  </a>
+</div>
+
+<!-- CHARTS -->
+<div class="charts-grid">
+  <div class="chart-panel">
+    <div class="panel-title"><span><i class="fas fa-chart-bar" style="color:var(--primary);"></i> {{ 'توزيع الطلاب على الكليات' if is_ar else 'Students by Faculty' }}</span></div>
+    <div class="chart-container"><canvas id="deptChart"></canvas></div>
+  </div>
+  <div class="chart-panel">
+    <div class="panel-title"><span><i class="fas fa-venus-mars" style="color:var(--primary);"></i> {{ 'توزيع النوع (بيانات حقيقية)' if is_ar else 'Gender Distribution (Live DB)' }}</span></div>
+    <div class="chart-container"><canvas id="genderChart"></canvas></div>
+  </div>
+</div>
+
+<!-- BOTTOM ROW: TOP STUDENTS + LIVE AUDIT TRAIL -->
+<div class="bottom-grid">
+  <div class="table-panel">
+    <div class="panel-title">
+      <span><i class="fas fa-trophy" style="color:#f59e0b;"></i> {{ 'أوائل الدفعة' if is_ar else 'Top Ranked Students' }}</span>
+      <a href="{{ url_for('system_students') }}" style="font-size:12px; color:var(--primary); text-decoration:none;">{{ 'عرض الكل' if is_ar else 'View all' }} →</a>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>#</th><th>{{ 'الكود' if is_ar else 'ID' }}</th><th>{{ 'الطالب' if is_ar else 'Student' }}</th><th>GPA</th></tr></thead>
+      <tbody>
+        {% for s in top_students %}
+        <tr>
+          <td style="font-weight:800; color:var(--primary);">#{{ loop.index }}</td>
+          <td style="color:var(--text-muted);">{{ s.student_code }}</td>
+          <td>{{ s.full_name }}</td>
+          <td><span class="grade-badge">{{ s.gpa }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-panel">
+    <div class="panel-title">
+      <span><i class="fas fa-shield-alt" style="color:#10b981;"></i> {{ 'آخر نشاطات سجل الأمان' if is_ar else 'Recent Security Audit Events' }}</span>
+      <a href="{{ url_for('system_audit') }}" style="font-size:12px; color:var(--primary); text-decoration:none;">{{ 'السجل الكامل' if is_ar else 'Full Log' }} →</a>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>{{ 'العملية' if is_ar else 'Action' }}</th><th>{{ 'المستخدم' if is_ar else 'Actor' }}</th><th>{{ 'التفاصيل' if is_ar else 'Details' }}</th></tr></thead>
+      <tbody>
+        {% for log in recent_audits %}
+        <tr>
+          <td><span class="audit-badge">{{ log.action }}</span></td>
+          <td>{{ log.actor_name }}</td>
+          <td style="color:var(--text-muted); font-size:12px;">{{ log.details[:55] }}{{ '...' if log.details|length > 55 else '' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" style="text-align:center; color:var(--text-muted); padding:20px;">{{ 'لا توجد سجلات بعد' if is_ar else 'No events yet.' }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let deptChartInst, genderChartInst;
+  function initCharts() {
+    const isDark = document.body.getAttribute('data-theme') === 'dark';
+    const textColor = isDark ? '#94a3b8' : '#64748b';
+    const gridColor = isDark ? '#334155' : '#e2e8f0';
+    Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
+    Chart.defaults.color = textColor;
+
+    const uniPrimary = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || '#4f46e5';
+    const uniAccent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#10b981';
+
+    const ctxDept = document.getElementById('deptChart').getContext('2d');
+    if (deptChartInst) deptChartInst.destroy();
+    const deptLabels = {{ dept_labels | tojson | safe if dept_labels else "['No Data']" }};
+    const deptData = {{ dept_counts | tojson | safe if dept_counts else "[0]" }};
+    deptChartInst = new Chart(ctxDept, {
+      type: 'bar',
+      data: { labels: deptLabels, datasets: [{ label: 'Students', data: deptData, backgroundColor: uniPrimary, borderRadius: 8 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false }, ticks: { color: textColor } }, y: { grid: { color: gridColor }, ticks: { color: textColor } } }
+      }
+    });
+
+    const ctxGender = document.getElementById('genderChart').getContext('2d');
+    if (genderChartInst) genderChartInst.destroy();
+    const genderData = {{ gender_counts | tojson | safe if gender_counts else "[0, 0]" }};
+    genderChartInst = new Chart(ctxGender, {
+      type: 'doughnut',
+      data: {
+        labels: ['{{ "ذكور" if is_ar else "Male" }}', '{{ "إناث" if is_ar else "Female" }}'],
+        datasets: [{ data: genderData, backgroundColor: [uniPrimary, uniAccent], borderWidth: 0, cutout: '70%' }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: textColor, padding: 18, usePointStyle: true } } } }
+    });
+  }
+  initCharts();
+
+  fetch('/api/admin/smart-stats').then(r => r.json()).then(data => {
+    if (data.summary) {
+      document.getElementById('aiSummaryText').textContent = data.summary;
+      document.getElementById('aiStatsPanel').style.display = 'block';
+    }
+  }).catch(() => {});
+
+  window.updateChartsTheme = function() { initCharts(); };
+</script>
+{% endblock %}

@@ -1,0 +1,89 @@
+{% extends "instructor_layout.html" %}
+
+{% block title %}EDUGUIDE | Instructor Assignments (LMS){% endblock %}
+{% block page_title %}{{ 'إدارة الواجبات والتقييم' if session.get('lang', 'en') == 'ar' else 'Assignments & Grading (LMS)' }}{% endblock %}
+
+{% block content %}
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+<style>
+  .grid-top { display:grid; grid-template-columns:1fr 1.2fr; gap:22px; margin-bottom:24px; }
+  @media (max-width:960px) { .grid-top { grid-template-columns:1fr; } }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:24px; margin-bottom:20px; overflow-x:auto; }
+  .card h2 { font-size:17px; font-weight:800; margin-bottom:16px; display:flex; align-items:center; gap:9px; }
+  .fg { margin-bottom:12px; }
+  .fg label { display:block; font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:5px; }
+  .fg input, .fg select, .fg textarea { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--bg); color:var(--text-main); font-family:inherit; font-weight:600; font-size:13.5px; }
+  .btn-go { background:var(--primary); color:#fff; border:none; padding:11px 18px; border-radius:10px; font-weight:800; font-size:13px; cursor:pointer; }
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; padding:10px 12px; font-size:11px; color:var(--text-muted); text-transform:uppercase; border-bottom:1px solid var(--border); }
+  td { padding:12px; font-size:13px; font-weight:600; border-bottom:1px solid var(--border); }
+  [dir="rtl"] th { text-align:right; }
+</style>
+
+<div class="grid-top">
+  <div class="card" style="margin-bottom:0;">
+    <h2><i class="fas fa-plus-circle" style="color:var(--primary);"></i> {{ 'نشر واجب / تكليف جديد' if is_ar else 'Publish New Assignment' }}</h2>
+    <form method="POST">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="fg"><label>{{ 'المقرر' if is_ar else 'Course' }}</label>
+        <select name="course_id" required>{% for c in courses %}<option value="{{ c.course_id }}">{{ c.course_id }} — {{ c.name }}</option>{% endfor %}</select>
+      </div>
+      <div class="fg"><label>{{ 'العنوان' if is_ar else 'Title' }}</label><input type="text" name="title" placeholder="Case Study Analysis #1" required></div>
+      <div class="fg"><label>{{ 'التعليمات' if is_ar else 'Instructions' }}</label><textarea name="description" rows="3" required></textarea></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="fg"><label>{{ 'آخر موعد' if is_ar else 'Due Date' }}</label><input type="date" name="due_date" required></div>
+        <div class="fg"><label>{{ 'الدرجة العظمى' if is_ar else 'Max Score' }}</label><input type="number" name="max_score" value="20" min="5" max="100"></div>
+      </div>
+      <button type="submit" class="btn-go" style="width:100%;"><i class="fas fa-paper-plane"></i> {{ 'نشر للطلاب' if is_ar else 'Publish Assignment' }}</button>
+    </form>
+  </div>
+
+  <div class="card" style="margin-bottom:0;">
+    <h2><i class="fas fa-list" style="color:var(--primary);"></i> {{ 'التكليفات المنشورة' if is_ar else 'Published Assignments' }}</h2>
+    <table>
+      <thead><tr><th>{{ 'المقرر' if is_ar else 'Course' }}</th><th>{{ 'العنوان' if is_ar else 'Title' }}</th><th>{{ 'الموعد' if is_ar else 'Due' }}</th><th>{{ 'الدرجة' if is_ar else 'Max' }}</th></tr></thead>
+      <tbody>
+        {% for a in assignments %}
+        <tr>
+          <td style="color:var(--primary); font-weight:800;">{{ a.course_id }}</td>
+          <td>{{ a.title }}</td>
+          <td style="color:var(--text-muted);">{{ a.due_date }}</td>
+          <td>{{ a.max_score }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:20px;">{{ 'لا توجد تكليفات بعد' if is_ar else 'No assignments yet.' }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h2><i class="fas fa-inbox" style="color:#10b981;"></i> {{ 'تسليمات الطلاب والتقييم' if is_ar else 'Student Submissions & Grading' }}</h2>
+  <table>
+    <thead><tr><th>{{ 'الطالب' if is_ar else 'Student' }}</th><th>{{ 'التكليف' if is_ar else 'Assignment' }}</th><th>{{ 'الملف / الملاحظة' if is_ar else 'Submission' }}</th><th>{{ 'الدرجة والتقييم' if is_ar else 'Grade & Feedback' }}</th></tr></thead>
+    <tbody>
+      {% for s in submissions %}
+      <tr>
+        <td>{{ s.student_name }} <div style="font-size:11px; color:var(--text-muted);">{{ s.student_code }}</div></td>
+        <td><strong>{{ s.course_id }}</strong> — {{ s.assignment_title }}</td>
+        <td>
+          {% if s.file_path %}<a href="{{ url_for('static', filename='uploads/' + s.file_path) }}" target="_blank" style="color:var(--primary); font-weight:700;"><i class="fas fa-file-download"></i> Download</a><br>{% endif %}
+          <span style="font-size:12px; color:var(--text-muted);">{{ s.note or '' }}</span>
+        </td>
+        <td>
+          <form method="POST" action="{{ url_for('grade_submission', submission_id=s.id) }}" style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <input type="number" step="0.5" name="score" value="{{ s.score if s.score is not none else '' }}" placeholder="/{{ s.max_score }}" style="width:70px; padding:6px 8px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text-main);" required>
+            <input type="text" name="feedback" value="{{ s.feedback or '' }}" placeholder="{{ 'تعليق...' if is_ar else 'Feedback...' }}" style="width:150px; padding:6px 8px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text-main);">
+            <button type="submit" class="btn-go" style="padding:7px 12px; font-size:12px;">{{ 'حفظ' if is_ar else 'Grade' }}</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:24px;">{{ 'لا توجد تسليمات طلاب حتى الآن.' if is_ar else 'No student submissions yet.' }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

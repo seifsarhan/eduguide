@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Campus Gate ID Verification</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { margin:0; font-family:'Plus Jakarta Sans', sans-serif; background:#0f172a; color:#0f172a; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+    .card { background:#fff; border-radius:24px; padding:34px; max-width:440px; width:100%; text-align:center; }
+    .badge { width:72px; height:72px; border-radius:20px; margin:0 auto 16px; display:flex; align-items:center; justify-content:center; font-size:32px; }
+    .ok { background:#dcfce7; color:#16a34a; }
+    .bad { background:#fee2e2; color:#dc2626; }
+    .meta { background:#f8fafc; border:1px solid #e2e8f0; border-radius:14px; padding:16px; margin-top:18px; text-align:left; font-size:13.5px; line-height:1.9; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    {% if is_valid and user %}
+      <div class="badge ok"><i class="fas fa-id-badge"></i></div>
+      <h2 style="margin:0 0 6px; color:#16a34a;">ACTIVE STUDENT — ACCESS GRANTED</h2>
+      <p style="margin:0; color:#64748b; font-size:13.5px;">Verified Campus Digital ID</p>
+      <div class="meta">
+        <div><strong>University:</strong> {{ uni.name if uni else 'EDUGUIDE University' }}</div>
+        <div><strong>Name:</strong> {{ user.full_name }}</div>
+        <div><strong>ID Code:</strong> {{ user.student_code }}</div>
+        <div><strong>Faculty:</strong> {{ user.faculty or 'N/A' }} (Year {{ user.level or 1 }})</div>
+      </div>
+    {% else %}
+      <div class="badge bad"><i class="fas fa-ban"></i></div>
+      <h2 style="margin:0 0 6px; color:#dc2626;">INVALID DIGITAL ID</h2>
+      <p style="margin:0; color:#64748b; font-size:13.5px;">Signature could not be verified for ID {{ student_code }}.</p>
+    {% endif %}
+  </div>
+</body>
+</html>

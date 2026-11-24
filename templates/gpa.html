@@ -1,0 +1,269 @@
+{% extends "dashboard_layout.html" %}
+
+{% block title %}EDUGUIDE | GPA{% endblock %}
+
+{% block page_title %}{{ 'المعدل والدرجات' if session.get('lang') == 'ar' else 'GPA & Grades' }}{% endblock %}
+
+{% block content %}
+<style>
+.gpa-shell { width: 100%; max-width: 1200px; margin: 0 auto; }
+.gpa-hero {
+  display: flex; justify-content: space-between; align-items: center; gap: 24px;
+  padding: 28px; border-radius: 28px; background: var(--surface); border: 1px solid var(--border);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.02); margin-bottom: 24px; flex-wrap: wrap;
+}
+.gpa-badge {
+  display: inline-block; padding: 8px 14px; border-radius: 999px;
+  background: rgba(37, 99, 235, 0.1); color: var(--primary); font-weight: 800; font-size: 0.88rem;
+}
+.gpa-hero h1 { margin: 10px 0; color: var(--text-main); font-size: 2rem; font-weight: 800; }
+.gpa-hero p { margin: 0; color: var(--text-muted); font-weight: 600; }
+.gpa-total-card {
+  min-width: 220px; padding: 22px; border-radius: 22px; background: rgba(37, 99, 235, 0.05);
+  border: 1px solid rgba(37, 99, 235, 0.1); text-align: center;
+}
+.gpa-total-card span { display: block; color: var(--text-muted); margin-bottom: 8px; font-weight: 600; }
+.gpa-total-card strong { color: var(--primary); font-size: 2rem; font-weight: 800; }
+.gpa-year-card {
+  background: var(--surface); border: 1px solid var(--border); box-shadow: 0 10px 20px rgba(0,0,0,0.02);
+  border-radius: 28px; padding: 24px; margin-bottom: 22px;
+}
+.gpa-year-card h2 { margin: 0; color: var(--text-main); font-weight: 800; }
+.gpa-semester-block {
+  margin-top: 18px; padding: 18px; border-radius: 22px; background: var(--bg); border: 1px solid var(--border);
+}
+.gpa-semester-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.gpa-semester-head h3 { margin: 0; color: var(--text-main); font-weight: 800; }
+.gpa-semester-head span {
+  padding: 8px 12px; border-radius: 999px; background: rgba(37, 99, 235, 0.1); color: var(--primary); font-weight: 800; font-size: 0.85rem;
+}
+.gpa-table { display: flex; flex-direction: column; gap: 10px; overflow-x: auto; }
+.gpa-row {
+  display: grid; grid-template-columns: .8fr 1.8fr .7fr .7fr .7fr; gap: 12px; align-items: center;
+  padding: 14px 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); font-weight: 600; font-size: 14px;
+}
+.gpa-head { font-weight: 800; color: var(--text-main); background: rgba(37, 99, 235, 0.03); border:none; }
+.grade-badge { padding: 4px 10px; background: rgba(34, 197, 94, 0.1); color: #16a34a; border-radius: 8px; font-weight: 800; }
+.gpa-empty-semester { padding: 18px; border-radius: 16px; background: var(--surface); border: 1px dashed var(--border); color: var(--text-muted); text-align: center; }
+
+@media print {
+  body * { visibility: hidden; }
+  .gpa-shell, .gpa-shell * { visibility: visible; }
+  .gpa-shell { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
+  .export-btn, .sidebar, .global-header { display: none !important; }
+  .gpa-hero { box-shadow: none; border: 1px solid #ddd; }
+  .gpa-year-card { box-shadow: none; border: 1px solid #ddd; page-break-inside: avoid; }
+  .gpa-row { background: transparent; border-bottom: 1px solid #eee; }
+}
+</style>
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+
+<div class="gpa-shell">
+
+  <section class="gpa-hero">
+    <div>
+      <div class="gpa-header">
+    <h1>{{ 'المعدل والدرجات' if is_ar else 'GPA & Grades' }}</h1>
+  </div>
+      <p>
+        {{ user.full_name if user else 'Student' }}
+        |
+        {{ user.faculty if user and user.faculty else 'Faculty of Commerce' }}
+        |
+        {{ user.student_code if user and user.student_code else 'N/A' }}
+      </p>
+    </div>
+
+    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <a href="{{ url_for('official_transcript') }}" class="export-btn" style="background:#10b981; color:white; text-decoration:none; border:none; padding:12px 18px; border-radius:14px; font-weight:800; font-size:13.5px; display:flex; align-items:center; gap:8px; box-shadow:0 4px 12px rgba(16,185,129,0.2);">
+        <i class="fas fa-certificate"></i> {{ 'بيان درجات رسمي (QR)' if is_ar else 'Verified Transcript (QR)' }}
+      </a>
+      <button onclick="window.print()" class="export-btn" style="background:var(--primary); color:white; border:none; padding:12px 20px; border-radius:14px; font-weight:800; font-size:14px; cursor:pointer; display:flex; align-items:center; gap:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); transition:0.2s;">
+        <i class="fas fa-file-pdf"></i> {{ 'تصدير PDF' if is_ar else 'Export PDF' }}
+      </button>
+      <div class="gpa-total-card">
+        <span>{{ 'المعدل التراكمي' if is_ar else 'Cumulative GPA' }}</span>
+        <strong>{{ user.gpa if user and user.gpa else 'N/A' }}</strong>
+      </div>
+    </div>
+  </section>
+
+
+  {% for year_num, year_data in years.items() %}
+    <section class="gpa-year-card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2>{{ year_data.label }}</h2>
+        <div style="background:var(--primary); color:white; padding:6px 12px; border-radius:12px; font-weight:800; font-size:14px;">
+          GPA: {{ year_data.year_gpa|default('0.0', true) }}
+        </div>
+      </div>
+
+      {% for semester_name, sem_data in year_data.semesters.items() %}
+        {% set courses = sem_data.courses %}
+        <div class="gpa-semester-block">
+
+          <div class="gpa-semester-head">
+            <h3 style="display:flex; align-items:center; gap:10px;">
+              {{ semester_name }} {{ 'ترم' if is_ar else 'Semester' }}
+              <span style="background:rgba(37, 99, 235, 0.1); color:var(--primary); padding:4px 8px; border-radius:8px; font-size:12px;">GPA: {{ sem_data.semester_gpa|default('0.0', true) }}</span>
+            </h3>
+
+            <span>{{ courses|length }} {{ 'مواد' if is_ar else 'courses' }}</span>
+          </div>
+
+          {% if courses and courses|length > 0 %}
+            <div class="gpa-table">
+              <div class="gpa-row gpa-head">
+                <div>{{ 'كود المادة' if is_ar else 'Code' }}</div>
+                <div>{{ 'اسم المادة' if is_ar else 'Course' }}</div>
+                <div>{{ 'الساعات' if is_ar else 'Credits' }}</div>
+                <div>{{ 'التقدير' if is_ar else 'Grade' }}</div>
+                <div>{{ 'النقاط' if is_ar else 'Points' }}</div>
+              </div>
+
+              {% for c in courses %}
+                <div class="gpa-row">
+                  <div>{{ c.course_code }}</div>
+                  <div><strong>{{ c.course_name }}</strong></div>
+                  <div>{{ c.credit_hours }}</div>
+                  <div><span class="grade-badge">{{ c.grade if c.grade else 'N/A' }}</span></div>
+                  <div>{{ c.points if c.points else 'N/A' }}</div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="gpa-empty-semester">
+              {{ 'لا توجد درجات مسجلة لهذا الترم بعد.' if is_ar else 'No grades recorded for this semester yet.' }}
+            </div>
+          {% endif %}
+
+        </div>
+      {% endfor %}
+    </section>
+  {% endfor %}
+
+  {% set ns = namespace(completed_credits=0) %}
+  {% for year_num, year_data in years.items() %}
+    {% set ns.completed_credits = ns.completed_credits + (year_data.total_credits|default(0, true)|int) %}
+  {% endfor %}
+  {% set effective_credits = ns.completed_credits if ns.completed_credits > 0 else 30 %}
+
+  <!-- GPA WHAT-IF CALCULATOR -->
+  <section class="gpa-year-card" style="border-top: 5px solid #fbbf24;">
+    <h2 style="color:#d97706;"><i class="fas fa-magic"></i> {{ 'حاسبة المعدل التخيلي' if is_ar else 'GPA What-If Calculator' }}</h2>
+    <p style="font-size:14px; color:var(--text-muted); margin:6px 0 20px;">
+      {{ 'أضف موادك القادمة وتقديراتك المتوقعة لتعرف تأثيرها على معدلك الفصلي والتراكمي.' if is_ar else 'Add your upcoming courses and expected grades to simulate both your Term GPA and Cumulative GPA.' }}
+      <span style="display:inline-block; margin-inline-start:8px; padding:2px 10px; border-radius:999px; background:rgba(251,191,36,0.14); color:#b45309; font-weight:700; font-size:12px;">
+        {{ ('الساعات المكتملة المعتمدة: ' if is_ar else 'Completed Credits Basis: ') ~ effective_credits }} {{ 'ساعة' if is_ar else 'hrs' }}
+      </span>
+    </p>
+
+    <div id="whatif-list" style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px;">
+      <!-- Starter rows populated on load -->
+    </div>
+
+    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px;">
+      <button type="button" onclick="addWhatIfRow()" style="background:var(--bg); color:var(--text-main); border:1px solid var(--border); padding:10px 20px; border-radius:12px; font-weight:700; cursor:pointer;"><i class="fas fa-plus"></i> {{ 'إضافة مادة' if is_ar else 'Add Subject' }}</button>
+      <button type="button" onclick="calculateWhatIf()" style="background:#fbbf24; color:#000; border:none; padding:10px 25px; border-radius:12px; font-weight:800; cursor:pointer;"><i class="fas fa-calculator"></i> {{ 'احسب النتيجة' if is_ar else 'Calculate Impact' }}</button>
+    </div>
+
+    <div id="whatif-result" style="display:none; padding:22px; border-radius:18px; background:rgba(251, 191, 36, 0.1); border:1px solid #fbbf24;">
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:16px; text-align:center;">
+        <div style="padding:12px; border-radius:14px; background:var(--surface); border:1px solid var(--border);">
+          <div style="font-size:13px; font-weight:700; color:var(--text-muted);">{{ 'المعدل الفصلي المتوقع' if is_ar else 'Projected Term GPA' }}</div>
+          <div id="projected-term-gpa" style="font-size:30px; font-weight:900; color:var(--primary); margin:6px 0;">0.000</div>
+          <div id="term-credits-lbl" style="font-size:12px; font-weight:600; color:var(--text-muted);"></div>
+        </div>
+        <div style="padding:12px; border-radius:14px; background:var(--surface); border:1px solid var(--border);">
+          <div style="font-size:13px; font-weight:700; color:var(--text-muted);">{{ 'المعدل التراكمي المتوقع' if is_ar else 'Projected Cumulative GPA' }}</div>
+          <div id="projected-gpa" style="font-size:30px; font-weight:900; color:#d97706; margin:6px 0;">0.000</div>
+          <div id="gpa-change" style="font-size:12.5px; font-weight:800;"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const currentGPA = parseFloat("{{ user.gpa if user and user.gpa else 0 }}") || 0;
+  const totalCreditsNow = parseInt("{{ effective_credits }}", 10) || 30;
+  const IS_AR_GPA = {{ 'true' if is_ar else 'false' }};
+
+  function addWhatIfRow(defaultName = '', defaultGrade = '3.7') {
+    const container = document.getElementById('whatif-list');
+    const div = document.createElement('div');
+    div.className = 'gpa-row';
+    div.style.gridTemplateColumns = '1.8fr .7fr .7fr .25fr';
+    div.innerHTML = `
+      <input type="text" value="${defaultName}" placeholder="${IS_AR_GPA ? 'اسم المادة' : 'Course Name'}" style="background:transparent; border:none; color:var(--text-main); font-weight:700; width:100%; outline:none;">
+      <input type="number" min="1" max="6" step="1" class="wi-credits" placeholder="${IS_AR_GPA ? 'الساعات' : 'Credits'}" value="3" style="background:var(--bg); border:1px solid var(--border); padding:6px; border-radius:8px; color:var(--text-main); text-align:center; font-weight:700;">
+      <select class="wi-grade" style="background:var(--bg); border:1px solid var(--border); padding:6px; border-radius:8px; color:var(--text-main); font-weight:700;">
+        <option value="4.0">A+ (4.0)</option>
+        <option value="4.0">A (4.0)</option>
+        <option value="3.7">A- (3.7)</option>
+        <option value="3.3">B+ (3.3)</option>
+        <option value="3.0">B (3.0)</option>
+        <option value="2.7">B- (2.7)</option>
+        <option value="2.3">C+ (2.3)</option>
+        <option value="2.0">C (2.0)</option>
+        <option value="1.7">C- (1.7)</option>
+        <option value="1.3">D+ (1.3)</option>
+        <option value="1.0">D (1.0)</option>
+        <option value="0.0">F (0.0)</option>
+      </select>
+      <button type="button" onclick="this.parentElement.remove()" style="background:transparent; border:none; color:#ef4444; cursor:pointer;" title="${IS_AR_GPA ? 'حذف' : 'Remove'}"><i class="fas fa-trash"></i></button>
+    `;
+    const sel = div.querySelector('.wi-grade');
+    if (sel) sel.value = defaultGrade;
+    container.appendChild(div);
+  }
+
+  function calculateWhatIf() {
+    const credits = document.querySelectorAll('.wi-credits');
+    const grades = document.querySelectorAll('.wi-grade');
+
+    let newQualityPoints = 0;
+    let newCredits = 0;
+
+    credits.forEach((c, i) => {
+      const cr = parseFloat(c.value) || 0;
+      const gr = parseFloat(grades[i].value) || 0;
+      if (cr > 0) {
+        newCredits += cr;
+        newQualityPoints += (cr * gr);
+      }
+    });
+
+    if (newCredits === 0) return;
+
+    const termGPA = newQualityPoints / newCredits;
+    const currentQualityPoints = currentGPA * totalCreditsNow;
+    const projectedGPA = (currentQualityPoints + newQualityPoints) / (totalCreditsNow + newCredits);
+
+    document.getElementById('whatif-result').style.display = 'block';
+    document.getElementById('projected-term-gpa').innerText = termGPA.toFixed(3);
+    document.getElementById('term-credits-lbl').innerText = `${newCredits} ${IS_AR_GPA ? 'ساعة معتمدة' : 'credit hrs'}`;
+    document.getElementById('projected-gpa').innerText = projectedGPA.toFixed(3);
+
+    const changeDisplay = document.getElementById('gpa-change');
+    const diff = projectedGPA - currentGPA;
+    if (diff > 0.0005) {
+      changeDisplay.style.color = '#10b981';
+      changeDisplay.innerText = `↑ +${diff.toFixed(3)} ${IS_AR_GPA ? 'زيادة في المعدل' : 'GPA Increase'}`;
+    } else if (diff < -0.0005) {
+      changeDisplay.style.color = '#ef4444';
+      changeDisplay.innerText = `↓ ${diff.toFixed(3)} ${IS_AR_GPA ? 'نقص في المعدل' : 'GPA Decrease'}`;
+    } else {
+      changeDisplay.style.color = 'var(--text-muted)';
+      changeDisplay.innerText = IS_AR_GPA ? 'ثابت بدون تغيير' : 'No change';
+    }
+  }
+
+  // Pre-populate 2 starter rows for immediate interactivity
+  addWhatIfRow(IS_AR_GPA ? 'مقرر مقترح 1' : 'Upcoming Course 1', '4.0');
+  addWhatIfRow(IS_AR_GPA ? 'مقرر مقترح 2' : 'Upcoming Course 2', '3.7');
+</script>
+{% endblock %}

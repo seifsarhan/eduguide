@@ -1,0 +1,52 @@
+{% extends "dashboard_layout.html" %}
+
+{% block title %}EDUGUIDE | Online Quizzes{% endblock %}
+{% block page_title %}{{ 'الاختبارات الأونلاين' if session.get('lang', 'en') == 'ar' else 'Online Timed Quizzes' }}{% endblock %}
+
+{% block content %}
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+<div style="max-width:1100px; margin:0 auto;">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}{% for cat, msg in messages %}
+  <div style="padding:14px 18px; border-radius:12px; margin-bottom:18px; font-weight:700;
+    background:{{ '#fef3c7' if cat == 'warning' else ('#dcfce7' if cat == 'success' else '#fee2e2') }};
+    color:{{ '#92400e' if cat == 'warning' else ('#166534' if cat == 'success' else '#991b1b') }};">{{ msg }}</div>
+  {% endfor %}{% endif %}{% endwith %}
+
+  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(310px, 1fr)); gap:18px;">
+    {% for q in quizzes %}
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:22px; display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="padding:4px 10px; border-radius:8px; background:rgba(79,70,229,0.1); color:var(--primary); font-weight:800; font-size:12px;">{{ q.course_id }}</span>
+        <span style="font-size:12px; color:var(--text-muted); font-weight:700;"><i class="fas fa-stopwatch"></i> {{ q.time_limit_mins }} {{ 'دقيقة' if is_ar else 'mins' }}</span>
+      </div>
+      <h3 style="font-size:17px; font-weight:800; margin:0;">{{ q.title }}</h3>
+      <div style="font-size:13px; color:var(--text-muted); font-weight:600;">
+        {{ q.course_name or '' }} · {{ q.q_count }} {{ 'أسئلة' if is_ar else 'Questions' }} ·
+        {{ 'المحاولات:' if is_ar else 'Attempts:' }} {{ q.attempts_used }}/{{ q.max_attempts }}
+      </div>
+
+      {% if q.attempt %}
+        <div style="padding:10px 14px; border-radius:10px; background:rgba(16,185,129,0.1); color:#10b981; font-weight:800; font-size:13px;">
+          <i class="fas fa-check-circle"></i> {{ 'نتيجتك المسجلة:' if is_ar else 'Recorded Score:' }} {{ q.attempt.score }}/{{ q.attempt.total_questions }} ({{ q.attempt.percentage }}%)
+        </div>
+      {% endif %}
+
+      {% if q.is_locked %}
+        <div style="margin-top:auto; text-align:center; padding:11px; border-radius:11px; background:var(--bg); border:1px solid var(--border); color:var(--text-muted); font-weight:800; font-size:13.5px;">
+          <i class="fas fa-lock"></i> {{ 'مكتمل — تم استنفاد المحاولات' if is_ar else 'Completed — Attempts Used' }}
+        </div>
+      {% else %}
+        <a href="{{ url_for('take_quiz', quiz_id=q.id) }}" style="margin-top:auto; text-align:center; padding:11px; border-radius:11px; background:var(--primary); color:#fff; text-decoration:none; font-weight:800; font-size:13.5px;">
+          <i class="fas fa-play"></i> {{ 'ابدأ الاختبار الآن' if is_ar else 'Start Timed Quiz' }}
+        </a>
+      {% endif %}
+    </div>
+    {% else %}
+    <div style="grid-column:1 / -1; background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:40px; text-align:center; color:var(--text-muted);">
+      {{ 'لا توجد اختبارات أونلاين متاحة لجامعتك حالياً.' if is_ar else 'No online quizzes published for your university yet.' }}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

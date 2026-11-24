@@ -1,0 +1,264 @@
+{% extends "system_layout.html" %}
+
+{% block title %}EDUGUIDE | System Students{% endblock %}
+{% block page_title %}{{ 'إدارة الطلاب' if session.get('lang', 'en') == 'ar' else 'Student Management' }}{% endblock %}
+
+{% block content %}
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+<style>
+  .sys-top { display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px; margin-bottom:24px; }
+  .sys-top h1 { font-size:26px; font-weight:800; color:var(--text-main); margin-bottom:6px; }
+  .sys-top p { color:var(--text-muted); font-size:14px; font-weight:500; }
+  .btn-row { display:flex; gap:10px; flex-wrap:wrap; }
+  .btn-sys { padding:10px 16px; border-radius:11px; border:1px solid var(--border); background:var(--surface); color:var(--text-main); font-weight:700; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; text-decoration:none; transition:0.2s; }
+  .btn-sys:hover { border-color:var(--primary); color:var(--primary); }
+  .btn-sys.primary { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .btn-sys.primary:hover { background:var(--primary-dark); color:#fff; }
+  .btn-sys.danger { color:#ef4444; border-color:rgba(239,68,68,0.25); }
+  .btn-sys.danger:hover { background:#fef2f2; }
+
+  .toolbar { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px; }
+  .toolbar input, .toolbar select { padding:10px 14px; border-radius:10px; border:1px solid var(--border); background:var(--surface); color:var(--text-main); font-family:inherit; font-weight:600; font-size:13px; }
+  .toolbar input { flex:1; min-width:220px; }
+
+  .table-panel { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:20px; overflow-x:auto; }
+  .data-table { width:100%; border-collapse:collapse; }
+  .data-table th { text-align:left; padding:12px 14px; font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.8px; border-bottom:1px solid var(--border); }
+  .data-table td { padding:14px; font-size:13.5px; font-weight:600; color:var(--text-main); border-bottom:1px solid var(--border); }
+  .data-table tr:last-child td { border-bottom:none; }
+  [dir="rtl"] .data-table th { text-align:right; }
+  .badge-gpa { background:rgba(16,185,129,0.1); color:#10b981; padding:4px 10px; border-radius:8px; font-weight:800; font-size:12px; }
+  .badge-uni { background:rgba(79,70,229,0.1); color:var(--primary); padding:4px 9px; border-radius:8px; font-weight:700; font-size:11.5px; }
+
+  .modal-bg { display:none; position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:3000; align-items:center; justify-content:center; padding:20px; }
+  .modal-bg.open { display:flex; }
+  .modal-box { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:28px; width:100%; max-width:520px; max-height:90vh; overflow-y:auto; }
+  .modal-box h3 { font-size:19px; font-weight:800; margin-bottom:18px; color:var(--text-main); }
+  .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .form-field { margin-bottom:12px; }
+  .form-field.full { grid-column:1 / -1; }
+  .form-field label { display:block; font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:6px; }
+  .form-field input, .form-field select { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--bg); color:var(--text-main); font-family:inherit; font-weight:600; font-size:13.5px; }
+  .modal-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
+</style>
+
+<div class="sys-top">
+  <div>
+    <h1>{{ 'إدارة الطلاب' if is_ar else 'Student Directory & Bulk Operations' }}</h1>
+    <p>{{ 'إضافة وتعديل وحذف الطلاب أو استيراد وتصدير شيتات Excel/CSV' if is_ar else 'Full CRUD student management with Bulk CSV Import & Export.' }}</p>
+  </div>
+  <div class="btn-row">
+    <a href="{{ url_for('system_students_export') }}" class="btn-sys">
+      <i class="fas fa-file-export"></i> {{ 'تصدير CSV' if is_ar else 'Export CSV' }}
+    </a>
+    <button type="button" class="btn-sys" onclick="openModal('importModal')">
+      <i class="fas fa-file-import"></i> {{ 'استيراد CSV جماعي' if is_ar else 'Bulk Import CSV' }}
+    </button>
+    <button type="button" class="btn-sys primary" onclick="openModal('addStudentModal')">
+      <i class="fas fa-user-plus"></i> {{ 'إضافة طالب' if is_ar else 'Add Student' }}
+    </button>
+  </div>
+</div>
+
+<form class="toolbar" method="GET" action="{{ url_for('system_students') }}">
+  <input type="text" name="q" value="{{ q or '' }}" placeholder="{{ 'ابحث بالاسم أو الكود الجامعي أو البريد...' if is_ar else 'Search by name, student code, or email...' }}">
+  <select name="faculty">
+    <option value="">{{ 'كل الكليات' if is_ar else 'All Faculties' }}</option>
+    {% for fac in faculties %}
+      <option value="{{ fac }}" {% if faculty_filter == fac %}selected{% endif %}>{{ fac }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn-sys primary"><i class="fas fa-search"></i> {{ 'بحث' if is_ar else 'Filter' }}</button>
+</form>
+
+<div class="table-panel">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>{{ 'الكود' if is_ar else 'Code' }}</th>
+        <th>{{ 'الاسم والبريد' if is_ar else 'Student & Email' }}</th>
+        <th>{{ 'الجامعة' if is_ar else 'University' }}</th>
+        <th>{{ 'الكلية' if is_ar else 'Faculty' }}</th>
+        <th>{{ 'المستوى' if is_ar else 'Level' }}</th>
+        <th>{{ 'المعدل' if is_ar else 'GPA' }}</th>
+        <th>{{ 'إجراءات' if is_ar else 'Actions' }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in students %}
+      <tr>
+        <td style="color:var(--text-muted);">{{ s.student_code or s.id }}</td>
+        <td>
+          <div>{{ s.full_name }}</div>
+          <div style="font-size:12px; color:var(--text-muted); font-weight:500;">{{ s.email }}</div>
+        </td>
+        <td><span class="badge-uni">{{ s.university_name or 'Default' }}</span></td>
+        <td>{{ s.faculty or 'N/A' }}</td>
+        <td>{{ s.level or 'N/A' }}</td>
+        <td><span class="badge-gpa">{{ s.gpa if s.gpa is not none else 'N/A' }}</span></td>
+        <td>
+          <div style="display:flex; gap:6px;">
+            <button type="button" class="btn-sys" style="padding:6px 10px; font-size:12px;"
+              onclick="openEditStudent({{ s.id }}, '{{ (s.full_name or '')|e }}', '{{ (s.email or '')|e }}', '{{ (s.student_code or '')|e }}', '{{ (s.faculty or '')|e }}', '{{ (s.level or '')|e }}', '{{ s.gpa or 0 }}', '{{ s.university_id or 3 }}')">
+              <i class="fas fa-edit"></i>
+            </button>
+            <form method="POST" action="{{ url_for('system_delete_student', student_id=s.id) }}" onsubmit="return confirm('Delete this student?');">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn-sys danger" style="padding:6px 10px; font-size:12px;"><i class="fas fa-trash"></i></button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">{{ 'لا يوجد طلاب مطابقين' if is_ar else 'No students found.' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- ADD STUDENT MODAL -->
+<div class="modal-bg" id="addStudentModal">
+  <div class="modal-box">
+    <h3><i class="fas fa-user-plus" style="color:var(--primary);"></i> {{ 'إضافة طالب جديد' if is_ar else 'Add New Student' }}</h3>
+    <form method="POST" action="{{ url_for('system_add_student') }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="form-grid">
+        <div class="form-field full">
+          <label>{{ 'الاسم الكامل' if is_ar else 'Full Name' }}</label>
+          <input type="text" name="full_name" required>
+        </div>
+        <div class="form-field">
+          <label>{{ 'الكود الجامعي' if is_ar else 'Student Code' }}</label>
+          <input type="text" name="student_code" placeholder="CU2026001" required>
+        </div>
+        <div class="form-field">
+          <label>{{ 'البريد الإلكتروني' if is_ar else 'Email' }}</label>
+          <input type="email" name="email" required>
+        </div>
+        <div class="form-field">
+          <label>{{ 'الجامعة' if is_ar else 'University' }}</label>
+          <select name="university_id">
+            {% for u in universities %}
+              <option value="{{ u.id }}" {% if u.id == 3 %}selected{% endif %}>{{ u.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-field">
+          <label>{{ 'الكلية' if is_ar else 'Faculty' }}</label>
+          <input type="text" name="faculty" value="Faculty of Commerce" required>
+        </div>
+        <div class="form-field">
+          <label>{{ 'المستوى' if is_ar else 'Level' }}</label>
+          <input type="text" name="level" value="1">
+        </div>
+        <div class="form-field">
+          <label>{{ 'المعدل التراكمي' if is_ar else 'GPA' }}</label>
+          <input type="number" step="0.01" min="0" max="4" name="gpa" value="3.00">
+        </div>
+        <div class="form-field full">
+          <label>{{ 'كلمة المرور المبدئية (تُشفّر تلقائياً)' if is_ar else 'Initial Password (auto-hashed)' }}</label>
+          <input type="password" name="password" value="123456" required>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-sys" onclick="closeModal('addStudentModal')">{{ 'إلغاء' if is_ar else 'Cancel' }}</button>
+        <button type="submit" class="btn-sys primary">{{ 'حفظ الطالب' if is_ar else 'Save Student' }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- EDIT STUDENT MODAL -->
+<div class="modal-bg" id="editStudentModal">
+  <div class="modal-box">
+    <h3><i class="fas fa-user-edit" style="color:var(--primary);"></i> {{ 'تعديل بيانات الطالب' if is_ar else 'Edit Student' }}</h3>
+    <form method="POST" id="editStudentForm">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="form-grid">
+        <div class="form-field full">
+          <label>{{ 'الاسم الكامل' if is_ar else 'Full Name' }}</label>
+          <input type="text" name="full_name" id="es_name" required>
+        </div>
+        <div class="form-field">
+          <label>{{ 'الكود الجامعي' if is_ar else 'Student Code' }}</label>
+          <input type="text" name="student_code" id="es_code" required>
+        </div>
+        <div class="form-field">
+          <label>{{ 'البريد الإلكتروني' if is_ar else 'Email' }}</label>
+          <input type="email" name="email" id="es_email" required>
+        </div>
+        <div class="form-field">
+          <label>{{ 'الجامعة' if is_ar else 'University' }}</label>
+          <select name="university_id" id="es_uni">
+            {% for u in universities %}
+              <option value="{{ u.id }}">{{ u.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-field">
+          <label>{{ 'الكلية' if is_ar else 'Faculty' }}</label>
+          <input type="text" name="faculty" id="es_fac" required>
+        </div>
+        <div class="form-field">
+          <label>{{ 'المستوى' if is_ar else 'Level' }}</label>
+          <input type="text" name="level" id="es_lvl">
+        </div>
+        <div class="form-field">
+          <label>{{ 'المعدل التراكمي' if is_ar else 'GPA' }}</label>
+          <input type="number" step="0.01" min="0" max="4" name="gpa" id="es_gpa">
+        </div>
+        <div class="form-field full">
+          <label>{{ 'كلمة مرور جديدة (اختياري)' if is_ar else 'New Password (leave empty to keep current)' }}</label>
+          <input type="password" name="password" placeholder="••••••••">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-sys" onclick="closeModal('editStudentModal')">{{ 'إلغاء' if is_ar else 'Cancel' }}</button>
+        <button type="submit" class="btn-sys primary">{{ 'تحديث' if is_ar else 'Update' }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- BULK CSV IMPORT MODAL -->
+<div class="modal-bg" id="importModal">
+  <div class="modal-box">
+    <h3><i class="fas fa-file-csv" style="color:#10b981;"></i> {{ 'استيراد الطلاب من ملف CSV' if is_ar else 'Bulk Import Students (CSV)' }}</h3>
+    <p style="font-size:13px; color:var(--text-muted); margin-bottom:16px; line-height:1.6;">
+      {{ 'ارفع شيت CSV يحتوي على الأعمدة المطلوبة (student_code, full_name, email, faculty, level, gpa, password, university_id). سيتم تشفير كل كلمات المرور تلقائياً وتجاهل التكرارات.' if is_ar else 'Upload a CSV spreadsheet with columns: student_code, full_name, email, faculty, level, gpa, password, university_id. All passwords are automatically hashed and duplicates skipped.' }}
+    </p>
+    <a href="{{ url_for('system_students_csv_template') }}" class="btn-sys" style="margin-bottom:16px;">
+      <i class="fas fa-download"></i> {{ 'تحميل نموذج CSV جاهز' if is_ar else 'Download CSV Template' }}
+    </a>
+    <form method="POST" action="{{ url_for('system_students_import') }}" enctype="multipart/form-data">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="form-field">
+        <label>{{ 'اختر ملف CSV' if is_ar else 'Select CSV File' }}</label>
+        <input type="file" name="csv_file" accept=".csv" required>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-sys" onclick="closeModal('importModal')">{{ 'إلغاء' if is_ar else 'Cancel' }}</button>
+        <button type="submit" class="btn-sys primary">{{ 'بدء الاستيراد' if is_ar else 'Start Import' }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openModal(id) { document.getElementById(id).classList.add('open'); }
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+  function openEditStudent(id, name, email, code, fac, lvl, gpa, uni) {
+    document.getElementById('editStudentForm').action = '/system/students/' + id + '/edit';
+    document.getElementById('es_name').value = name;
+    document.getElementById('es_email').value = email;
+    document.getElementById('es_code').value = code;
+    document.getElementById('es_fac').value = fac;
+    document.getElementById('es_lvl').value = lvl;
+    document.getElementById('es_gpa').value = gpa;
+    document.getElementById('es_uni').value = uni;
+    openModal('editStudentModal');
+  }
+</script>
+{% endblock %}

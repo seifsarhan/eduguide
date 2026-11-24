@@ -1,0 +1,147 @@
+{% extends "system_layout.html" %}
+
+{% block title %}EDUGUIDE | System Faculty{% endblock %}
+{% block page_title %}{{ 'أعضاء هيئة التدريس' if session.get('lang', 'en') == 'ar' else 'Faculty Management' }}{% endblock %}
+
+{% block content %}
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+<style>
+  .sys-top { display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px; margin-bottom:24px; }
+  .sys-top h1 { font-size:26px; font-weight:800; color:var(--text-main); margin-bottom:6px; }
+  .sys-top p { color:var(--text-muted); font-size:14px; font-weight:500; }
+  .btn-sys { padding:10px 16px; border-radius:11px; border:1px solid var(--border); background:var(--surface); color:var(--text-main); font-weight:700; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; text-decoration:none; }
+  .btn-sys.primary { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .btn-sys.danger { color:#ef4444; border-color:rgba(239,68,68,0.25); }
+  .toolbar { display:flex; gap:12px; margin-bottom:20px; }
+  .toolbar input { flex:1; padding:10px 14px; border-radius:10px; border:1px solid var(--border); background:var(--surface); color:var(--text-main); font-family:inherit; font-weight:600; font-size:13px; }
+  .table-panel { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:20px; overflow-x:auto; }
+  .data-table { width:100%; border-collapse:collapse; }
+  .data-table th { text-align:left; padding:12px 14px; font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; border-bottom:1px solid var(--border); }
+  .data-table td { padding:14px; font-size:13.5px; font-weight:600; color:var(--text-main); border-bottom:1px solid var(--border); }
+  .data-table tr:last-child td { border-bottom:none; }
+  [dir="rtl"] .data-table th { text-align:right; }
+  .badge-spec { background:rgba(79,70,229,0.1); color:var(--primary); padding:4px 10px; border-radius:8px; font-weight:800; font-size:12px; }
+  .modal-bg { display:none; position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:3000; align-items:center; justify-content:center; padding:20px; }
+  .modal-bg.open { display:flex; }
+  .modal-box { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:28px; width:100%; max-width:480px; }
+  .modal-box h3 { font-size:18px; font-weight:800; margin-bottom:16px; }
+  .form-field { margin-bottom:12px; }
+  .form-field label { display:block; font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:6px; }
+  .form-field input, .form-field select { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--bg); color:var(--text-main); font-family:inherit; font-weight:600; font-size:13.5px; }
+  .modal-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:16px; }
+</style>
+
+<div class="sys-top">
+  <div>
+    <h1>{{ 'قائمة أعضاء هيئة التدريس' if is_ar else 'Instructors & Faculty Directory' }}</h1>
+    <p>{{ 'إضافة وتعديل وحذف حسابات الدكاترة والمعيدين' if is_ar else 'Create, edit, and manage professor and instructor accounts.' }}</p>
+  </div>
+  <button type="button" class="btn-sys primary" onclick="openModal('addFacModal')">
+    <i class="fas fa-plus"></i> {{ 'إضافة دكتور' if is_ar else 'Add Instructor' }}
+  </button>
+</div>
+
+<form class="toolbar" method="GET" action="{{ url_for('system_faculty') }}">
+  <input type="text" name="q" value="{{ q or '' }}" placeholder="{{ 'ابحث بالاسم أو التخصص أو البريد...' if is_ar else 'Search by name, specialization, or email...' }}">
+  <button type="submit" class="btn-sys primary"><i class="fas fa-search"></i> {{ 'بحث' if is_ar else 'Search' }}</button>
+</form>
+
+<div class="table-panel">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>{{ 'الاسم' if is_ar else 'Name' }}</th>
+        <th>{{ 'البريد الإلكتروني' if is_ar else 'Email' }}</th>
+        <th>{{ 'الجامعة' if is_ar else 'University' }}</th>
+        <th>{{ 'التخصص' if is_ar else 'Specialization' }}</th>
+        <th>{{ 'إجراءات' if is_ar else 'Actions' }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in faculty %}
+      <tr>
+        <td style="color:var(--text-muted);">#{{ f.id }}</td>
+        <td>{{ f.full_name }}</td>
+        <td style="color:var(--text-muted);">{{ f.email }}</td>
+        <td>{{ f.university_name or 'Default' }}</td>
+        <td><span class="badge-spec">{{ f.specialization or 'General' }}</span></td>
+        <td>
+          <div style="display:flex; gap:6px;">
+            <button type="button" class="btn-sys" style="padding:6px 10px; font-size:12px;"
+              onclick="openEditFac({{ f.id }}, '{{ (f.full_name or '')|e }}', '{{ (f.email or '')|e }}', '{{ (f.specialization or '')|e }}', '{{ f.university_id or 3 }}')">
+              <i class="fas fa-edit"></i>
+            </button>
+            <form method="POST" action="{{ url_for('system_delete_faculty', instructor_id=f.id) }}" onsubmit="return confirm('Delete this instructor?');">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn-sys danger" style="padding:6px 10px; font-size:12px;"><i class="fas fa-trash"></i></button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="6" style="text-align:center; padding:30px; color:var(--text-muted);">{{ 'لا يوجد مدرسين مسجلين' if is_ar else 'No instructors found.' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="modal-bg" id="addFacModal">
+  <div class="modal-box">
+    <h3>{{ 'إضافة عضو هيئة تدريس' if is_ar else 'Add Instructor' }}</h3>
+    <form method="POST" action="{{ url_for('system_add_faculty') }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="form-field"><label>{{ 'الاسم الكامل' if is_ar else 'Full Name' }}</label><input type="text" name="full_name" required></div>
+      <div class="form-field"><label>{{ 'البريد الإلكتروني' if is_ar else 'Email' }}</label><input type="email" name="email" required></div>
+      <div class="form-field"><label>{{ 'التخصص' if is_ar else 'Specialization' }}</label><input type="text" name="specialization" placeholder="Accounting / Finance" required></div>
+      <div class="form-field"><label>{{ 'الجامعة' if is_ar else 'University' }}</label>
+        <select name="university_id">
+          {% for u in universities %}<option value="{{ u.id }}" {% if u.id == 3 %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-field"><label>{{ 'كلمة المرور' if is_ar else 'Password' }}</label><input type="password" name="password" value="123456" required></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-sys" onclick="closeModal('addFacModal')">{{ 'إلغاء' if is_ar else 'Cancel' }}</button>
+        <button type="submit" class="btn-sys primary">{{ 'حفظ' if is_ar else 'Save' }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-bg" id="editFacModal">
+  <div class="modal-box">
+    <h3>{{ 'تعديل بيانات عضو هيئة التدريس' if is_ar else 'Edit Instructor' }}</h3>
+    <form method="POST" id="editFacForm">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="form-field"><label>{{ 'الاسم الكامل' if is_ar else 'Full Name' }}</label><input type="text" name="full_name" id="ef_name" required></div>
+      <div class="form-field"><label>{{ 'البريد الإلكتروني' if is_ar else 'Email' }}</label><input type="email" name="email" id="ef_email" required></div>
+      <div class="form-field"><label>{{ 'التخصص' if is_ar else 'Specialization' }}</label><input type="text" name="specialization" id="ef_spec"></div>
+      <div class="form-field"><label>{{ 'الجامعة' if is_ar else 'University' }}</label>
+        <select name="university_id" id="ef_uni">
+          {% for u in universities %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-field"><label>{{ 'كلمة مرور جديدة (اختياري)' if is_ar else 'New Password (optional)' }}</label><input type="password" name="password" placeholder="••••••••"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-sys" onclick="closeModal('editFacModal')">{{ 'إلغاء' if is_ar else 'Cancel' }}</button>
+        <button type="submit" class="btn-sys primary">{{ 'تحديث' if is_ar else 'Update' }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openModal(id) { document.getElementById(id).classList.add('open'); }
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+  function openEditFac(id, name, email, spec, uni) {
+    document.getElementById('editFacForm').action = '/system/faculty/' + id + '/edit';
+    document.getElementById('ef_name').value = name;
+    document.getElementById('ef_email').value = email;
+    document.getElementById('ef_spec').value = spec;
+    document.getElementById('ef_uni').value = uni;
+    openModal('editFacModal');
+  }
+</script>
+{% endblock %}

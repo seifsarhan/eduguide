@@ -1,0 +1,83 @@
+{% extends "instructor_layout.html" %}
+
+{% block title %}EDUGUIDE | QR Attendance Manager{% endblock %}
+{% block page_title %}{{ 'الحضور الذكي بالـ QR' if session.get('lang', 'en') == 'ar' else 'QR Attendance Manager' }}{% endblock %}
+
+{% block content %}
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:22px; margin-bottom:24px; }
+  @media (max-width:960px) { .grid-2 { grid-template-columns:1fr; } }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:24px; }
+  .card h2 { font-size:17px; font-weight:800; margin-bottom:16px; display:flex; align-items:center; gap:9px; }
+  .fg { margin-bottom:13px; }
+  .fg label { display:block; font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:6px; }
+  .fg input, .fg select { width:100%; padding:10px 13px; border-radius:10px; border:1px solid var(--border); background:var(--bg); color:var(--text-main); font-family:inherit; font-weight:600; font-size:13.5px; }
+  .btn-go { background:var(--primary); color:#fff; border:none; padding:12px 20px; border-radius:11px; font-weight:800; font-size:13.5px; cursor:pointer; width:100%; }
+  .sess-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(290px, 1fr)); gap:18px; }
+  .sess-card { background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:20px; text-align:center; }
+  .code-big { font-size:28px; font-weight:800; letter-spacing:5px; color:var(--primary); margin:10px 0; }
+  .qr-box { display:flex; justify-content:center; margin:14px auto; padding:12px; background:#fff; border-radius:14px; width:fit-content; border:1px solid var(--border); }
+  .badge { padding:4px 10px; border-radius:8px; font-size:11.5px; font-weight:800; }
+  .badge.live { background:rgba(16,185,129,0.12); color:#10b981; }
+  .badge.exp { background:rgba(100,116,139,0.15); color:var(--text-muted); }
+</style>
+
+<div class="grid-2">
+  <div class="card">
+    <h2><i class="fas fa-qrcode" style="color:var(--primary);"></i> {{ 'فتح جلسة حضور QR جديدة' if is_ar else 'Open Live QR Attendance Session' }}</h2>
+    <form method="POST">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="create_session">
+      <div class="fg"><label>{{ 'المقرر' if is_ar else 'Course' }}</label>
+        <select name="course_id" required>{% for c in courses %}<option value="{{ c.course_id }}">{{ c.course_id }} — {{ c.name }}</option>{% endfor %}</select>
+      </div>
+      <div class="fg"><label>{{ 'عنوان المحاضرة' if is_ar else 'Lecture Title' }}</label><input type="text" name="title" placeholder="Week 6 Lecture" required></div>
+      <div class="fg"><label>{{ 'مدة صلاحية الكود (دقائق)' if is_ar else 'Code Validity (Minutes)' }}</label><input type="number" name="duration" value="15" min="5" max="180"></div>
+      <button type="submit" class="btn-go"><i class="fas fa-broadcast-tower"></i> {{ 'إنشاء كود و QR الآن' if is_ar else 'Generate Live QR & Code' }}</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2><i class="fas fa-user-times" style="color:#ef4444;"></i> {{ 'تسجيل غياب وإرسال إنذار تلقائي (25%)' if is_ar else 'Record Absence (Auto 25% Warning)' }}</h2>
+    <form method="POST">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="mark_absence">
+      <div class="fg"><label>{{ 'الطالب' if is_ar else 'Student' }}</label>
+        <select name="user_id" required>{% for st in students_list %}<option value="{{ st.id }}">{{ st.student_code }} — {{ st.full_name }}</option>{% endfor %}</select>
+      </div>
+      <div class="fg"><label>{{ 'المادة' if is_ar else 'Subject' }}</label>
+        <select name="subject_name" required>{% for c in courses %}<option value="{{ c.name }}">{{ c.course_id }} — {{ c.name }}</option>{% endfor %}</select>
+      </div>
+      <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:14px;">
+        {{ 'عند وصول غياب الطالب لـ 18% أو 25% يرسل النظام إشعار إنذار/حرمان تلقائياً للطالب.' if is_ar else 'Automatically triggers student warning & deprivation alerts at 18% and 25% absence.' }}
+      </p>
+      <button type="submit" class="btn-go" style="background:#ef4444;"><i class="fas fa-exclamation-triangle"></i> {{ 'تسجيل غياب' if is_ar else 'Record Absence' }}</button>
+    </form>
+  </div>
+</div>
+
+<h2 style="font-size:18px; font-weight:800; margin-bottom:16px;"><i class="fas fa-history" style="color:var(--primary);"></i> {{ 'جلسات الحضور المفتوحة والسابقة' if is_ar else 'Active & Recent QR Sessions' }}</h2>
+<div class="sess-grid">
+  {% for s in sessions_list %}
+  <div class="sess-card">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <strong style="font-size:13px; color:var(--primary);">{{ s.course_id }}</strong>
+      <span class="badge {{ 'live' if s.is_active else 'exp' }}">{{ ('مفتوحة الآن' if is_ar else 'LIVE') if s.is_active else ('منتهية' if is_ar else 'Expired') }}</span>
+    </div>
+    <div style="font-weight:700; margin-top:6px;">{{ s.title }}</div>
+    <div class="code-big">{{ s.session_code }}</div>
+    <div class="qr-box" id="qr-{{ s.id }}"></div>
+    <div style="font-size:13px; font-weight:700; color:var(--text-muted);">
+      <i class="fas fa-users" style="color:#10b981;"></i> {{ s.checkin_count }} {{ 'طالب حضر' if is_ar else 'Checked In' }}
+    </div>
+    <script>
+      new QRCode(document.getElementById("qr-{{ s.id }}"), { text: "{{ s.checkin_url }}", width: 136, height: 136 });
+    </script>
+  </div>
+  {% else %}
+  <div class="card" style="grid-column:1 / -1; text-align:center; color:var(--text-muted);">{{ 'لم تقم بفتح أي جلسات حضور بعد.' if is_ar else 'No attendance sessions created yet.' }}</div>
+  {% endfor %}
+</div>
+{% endblock %}

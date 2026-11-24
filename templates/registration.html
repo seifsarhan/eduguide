@@ -1,0 +1,164 @@
+{% extends "dashboard_layout.html" %}
+
+{% block title %}EDUGUIDE | Course Registration{% endblock %}
+{% block page_title %}{{ 'تسجيل المقررات (الساعات المعتمدة)' if session.get('lang', 'en') == 'ar' else 'Course Registration (Credit Hours)' }}{% endblock %}
+
+{% block content %}
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+<style>
+  .reg-wrap { max-width:1200px; margin:0 auto; }
+  .reg-summary { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:24px; }
+  .sum-card { background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:20px; }
+  .sum-card .lbl { font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:8px; }
+  .sum-card .val { font-size:24px; font-weight:800; color:var(--text-main); }
+  .progress-track { height:8px; background:var(--bg); border-radius:99px; overflow:hidden; margin-top:10px; border:1px solid var(--border); }
+  .progress-fill { height:100%; background:var(--primary); border-radius:99px; }
+
+  .reg-panel { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:22px; margin-bottom:24px; overflow-x:auto; }
+  .reg-panel h2 { font-size:17px; font-weight:800; margin-bottom:16px; color:var(--text-main); display:flex; align-items:center; gap:10px; }
+  .reg-table { width:100%; border-collapse:collapse; }
+  .reg-table th { text-align:left; padding:11px 14px; font-size:11.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; border-bottom:1px solid var(--border); }
+  .reg-table td { padding:14px; font-size:13.5px; font-weight:600; color:var(--text-main); border-bottom:1px solid var(--border); }
+  .reg-table tr:last-child td { border-bottom:none; }
+  [dir="rtl"] .reg-table th { text-align:right; }
+
+  .pill { display:inline-block; padding:4px 9px; border-radius:8px; font-size:11.5px; font-weight:800; }
+  .pill.ok { background:rgba(16,185,129,0.12); color:#10b981; }
+  .pill.warn { background:rgba(245,158,11,0.14); color:#d97706; }
+  .pill.err { background:rgba(239,68,68,0.12); color:#ef4444; }
+  .pill.info { background:rgba(79,70,229,0.1); color:var(--primary); }
+
+  .btn-act { padding:7px 14px; border-radius:9px; border:none; font-weight:700; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+  .btn-add { background:var(--primary); color:#fff; }
+  .btn-drop { background:rgba(239,68,68,0.1); color:#ef4444; }
+  .btn-disabled { background:var(--bg); color:var(--text-muted); cursor:not-allowed; border:1px solid var(--border); }
+</style>
+
+<div class="reg-wrap">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+    <div style="padding:14px 18px; border-radius:12px; margin-bottom:18px; font-weight:700; font-size:14px;
+      background:{{ '#dcfce7' if category == 'success' else ('#fef3c7' if category == 'warning' else '#fee2e2') }};
+      color:{{ '#166534' if category == 'success' else ('#92400e' if category == 'warning' else '#991b1b') }};">
+      {{ message }}
+    </div>
+    {% endfor %}
+  {% endif %}
+  {% endwith %}
+
+  <div class="reg-summary">
+    <div class="sum-card">
+      <div class="lbl">{{ 'المعدل التراكمي' if is_ar else 'Current GPA' }}</div>
+      <div class="val">{{ gpa }}</div>
+    </div>
+    <div class="sum-card">
+      <div class="lbl">{{ 'الساعات المسجلة / الحد الأقصى' if is_ar else 'Registered / Max Credits' }}</div>
+      <div class="val">{{ current_credits }} / {{ max_credits }} <span style="font-size:14px; color:var(--text-muted);">{{ 'ساعة' if is_ar else 'hrs' }}</span></div>
+      {% set pct = (current_credits * 100 // max_credits) if max_credits else 0 %}
+      <div class="progress-track"><div class="progress-fill" style="width:{{ [pct, 100]|min }}%;"></div></div>
+    </div>
+    <div class="sum-card">
+      <div class="lbl">{{ 'المقررات النشطة هذا الفصل' if is_ar else 'Active Enrolled Courses' }}</div>
+      <div class="val">{{ active_enrollments|length }}</div>
+    </div>
+  </div>
+
+  <!-- ACTIVE ENROLLMENTS -->
+  <div class="reg-panel">
+    <h2><i class="fas fa-check-circle" style="color:#10b981;"></i> {{ 'المقررات المسجلة حالياً (Add / Drop)' if is_ar else 'Your Currently Enrolled Courses' }}</h2>
+    {% if active_enrollments %}
+    <table class="reg-table">
+      <thead>
+        <tr>
+          <th>{{ 'الكود' if is_ar else 'Code' }}</th>
+          <th>{{ 'المقرر' if is_ar else 'Course' }}</th>
+          <th>{{ 'المحاضر' if is_ar else 'Instructor' }}</th>
+          <th>{{ 'الساعات' if is_ar else 'Credits' }}</th>
+          <th>{{ 'إجراء' if is_ar else 'Action' }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in active_enrollments %}
+        <tr>
+          <td style="color:var(--primary); font-weight:800;">{{ e.course_id }}</td>
+          <td>{{ e.course_name }}</td>
+          <td style="color:var(--text-muted);">{{ e.instructor_name }}</td>
+          <td><span class="pill info">{{ e.credit_hours }} hrs</span></td>
+          <td>
+            <form method="POST" action="{{ url_for('registration_page') }}" onsubmit="return confirm('Drop {{ e.course_id }}?');">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="drop">
+              <input type="hidden" name="course_id" value="{{ e.course_id }}">
+              <button type="submit" class="btn-act btn-drop"><i class="fas fa-times"></i> {{ 'حذف (Drop)' if is_ar else 'Drop' }}</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p style="color:var(--text-muted); font-weight:600;">{{ 'لم تسجل أي مقررات بعد هذا الفصل. اختر من الكتالوج أدناه.' if is_ar else 'No active enrollments yet. Select courses from the catalog below.' }}</p>
+    {% endif %}
+  </div>
+
+  <!-- COURSE CATALOG WITH PREREQUISITE VALIDATION -->
+  <div class="reg-panel">
+    <h2><i class="fas fa-book-open" style="color:var(--primary);"></i> {{ 'كتالوج المقررات المتاحة للتسجيل' if is_ar else 'Available Course Catalog (Prerequisite Checked)' }}</h2>
+    <table class="reg-table">
+      <thead>
+        <tr>
+          <th>{{ 'الكود' if is_ar else 'Code' }}</th>
+          <th>{{ 'اسم المقرر' if is_ar else 'Course Title' }}</th>
+          <th>{{ 'القسم / السنة' if is_ar else 'Dept / Year' }}</th>
+          <th>{{ 'الساعات' if is_ar else 'Credits' }}</th>
+          <th>{{ 'المتطلبات السابقة' if is_ar else 'Prerequisites' }}</th>
+          <th>{{ 'المقاعد' if is_ar else 'Seats' }}</th>
+          <th>{{ 'الحالة / إجراء' if is_ar else 'Action' }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in catalog %}
+        <tr>
+          <td style="color:var(--primary); font-weight:800;">{{ c.course_id }}</td>
+          <td>
+            <div>{{ c.name }}</div>
+            <div style="font-size:11.5px; color:var(--text-muted);">{{ c.instructor_name }}</div>
+          </td>
+          <td style="color:var(--text-muted);">{{ c.dept_name or 'General' }} (Y{{ c.year_level }})</td>
+          <td><span class="pill info">{{ c.credit_hours }} hrs</span></td>
+          <td>
+            {% if c.missing_prereqs %}
+              <span class="pill err"><i class="fas fa-lock"></i> {{ 'مطلوب:' if is_ar else 'Needs:' }} {{ c.missing_prereqs|join(', ') }}</span>
+            {% elif c.prereqs %}
+              <span class="pill ok"><i class="fas fa-check"></i> {{ c.prereqs|join(', ') }}</span>
+            {% else %}
+              <span style="color:var(--text-muted); font-size:12px;">{{ 'لا يوجد' if is_ar else 'None' }}</span>
+            {% endif %}
+          </td>
+          <td>{{ c.enrolled_count }} / {{ c.max_capacity }}</td>
+          <td>
+            {% if c.is_enrolled %}
+              <span class="pill ok">{{ 'مسجل حالياً' if is_ar else 'Enrolled' }}</span>
+            {% elif c.is_completed %}
+              <span class="pill info">{{ 'مكتمل' if is_ar else 'Completed' }}</span>
+            {% elif c.missing_prereqs %}
+              <button class="btn-act btn-disabled" disabled><i class="fas fa-lock"></i> {{ 'مغلق' if is_ar else 'Locked' }}</button>
+            {% elif c.enrolled_count >= c.max_capacity %}
+              <button class="btn-act btn-disabled" disabled>{{ 'مكتمل العدد' if is_ar else 'Full' }}</button>
+            {% else %}
+              <form method="POST" action="{{ url_for('registration_page') }}">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="add">
+                <input type="hidden" name="course_id" value="{{ c.course_id }}">
+                <button type="submit" class="btn-act btn-add"><i class="fas fa-plus"></i> {{ 'تسجيل' if is_ar else 'Register' }}</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

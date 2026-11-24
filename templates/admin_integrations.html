@@ -1,0 +1,48 @@
+{% extends "system_layout.html" %}
+
+{% block title %}EDUGUIDE | System Integrations{% endblock %}
+{% block page_title %}{{ 'إعدادات الربط والـ API' if session.get('lang', 'en') == 'ar' else 'System Integrations' }}{% endblock %}
+
+{% block content %}
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+<style>
+  .int-card { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:30px; max-width:760px; }
+  .int-card h1 { font-size:22px; font-weight:800; margin-bottom:6px; }
+  .int-card p { color:var(--text-muted); font-size:14px; margin-bottom:24px; }
+  .fg { margin-bottom:18px; }
+  .fg label { display:block; font-weight:700; font-size:13px; color:var(--text-muted); margin-bottom:7px; }
+  .fg input { width:100%; padding:12px 14px; border-radius:10px; border:1px solid var(--border); background:var(--bg); color:var(--text-main); font-family:monospace; font-size:13.5px; }
+  .btn-save { background:var(--primary); color:#fff; border:none; padding:13px 24px; border-radius:11px; font-weight:800; font-size:14px; cursor:pointer; }
+  .btn-save:hover { background:var(--primary-dark); }
+</style>
+
+<div class="int-card">
+  <h1><i class="fas fa-plug" style="color:var(--primary);"></i> {{ 'إعدادات الربط ومفاتيح الـ API' if is_ar else 'API Keys & External Integrations' }}</h1>
+  <p>{{ 'المفاتيح الحالية مخفية أمنياً. أدخل قيمة جديدة فقط لتحديث المفتاح.' if is_ar else 'Existing secret keys are masked for security. Enter a new value only when updating a key.' }}</p>
+
+  <form method="POST">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <div class="fg">
+      <label>Groq AI API Key</label>
+      <input type="text" name="GROQ_API_KEY" value="{{ keys.get('GROQ_API_KEY', '') }}" placeholder="gsk_...">
+    </div>
+    <div class="fg">
+      <label>Google Gemini API Key</label>
+      <input type="text" name="GEMINI_API_KEY" value="{{ keys.get('GEMINI_API_KEY', '') }}" placeholder="AIza...">
+    </div>
+    <div class="fg">
+      <label>Paymob API Key (Secret)</label>
+      <input type="text" name="PAYMOB_API_KEY" value="{{ keys.get('PAYMOB_API_KEY', '') }}" placeholder="ZXlKa...">
+    </div>
+    <div class="fg">
+      <label>Paymob Integration ID (Card)</label>
+      <input type="text" name="PAYMOB_INTEGRATION_ID_CARD" value="{{ keys.get('PAYMOB_INTEGRATION_ID_CARD', '') }}">
+    </div>
+    <div class="fg">
+      <label>Paymob Integration ID (Fawry)</label>
+      <input type="text" name="PAYMOB_INTEGRATION_ID_FAWRY" value="{{ keys.get('PAYMOB_INTEGRATION_ID_FAWRY', '') }}">
+    </div>
+    <button type="submit" class="btn-save"><i class="fas fa-save"></i> {{ 'حفظ وتحديث الإعدادات' if is_ar else 'Save & Reload Integrations' }}</button>
+  </form>
+</div>
+{% endblock %}

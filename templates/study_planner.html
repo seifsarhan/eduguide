@@ -1,0 +1,312 @@
+{% extends "dashboard_layout.html" %}
+
+{% block title %}EDUGUIDE | Study Planner{% endblock %}
+{% block page_title %}{{ 'مخطط المذاكرة' if session.get('lang') == 'ar' else 'Study Planner' }}{% endblock %}
+
+{% block content %}
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+{% set total_tasks = tasks|length if tasks else 0 %}
+{% set done_tasks = tasks|selectattr('status', 'equalto', 'Completed')|list|length if tasks else 0 %}
+{% set pct_done = ((done_tasks / total_tasks) * 100)|round|int if total_tasks > 0 else 0 %}
+
+<style>
+  .planner-container { max-width: 1050px; margin: 0 auto; animation: fadeIn 0.4s ease; }
+
+  .progress-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    padding: 22px 26px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .progress-meta h3 { margin: 0 0 4px; font-size: 17px; font-weight: 800; color: var(--text-main); }
+  .progress-meta p { margin: 0; font-size: 13px; color: var(--text-muted); font-weight: 600; }
+  .progress-bar-outer {
+    flex: 1;
+    min-width: 220px;
+    height: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--primary), #10b981);
+    transition: width 0.4s ease;
+  }
+  .progress-pct {
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--primary);
+    min-width: 58px;
+    text-align: center;
+  }
+
+  .planner-grid { display: grid; grid-template-columns: 1fr 340px; gap: 26px; }
+  @media (max-width: 992px) { .planner-grid { grid-template-columns: 1fr; } }
+
+  .task-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 26px; }
+  .section-title { font-size: 19px; font-weight: 800; margin-bottom: 20px; color: var(--text-main); display: flex; align-items: center; gap: 10px; }
+
+  .task-item {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 15px 18px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    transition: all 0.2s ease;
+  }
+  .task-item:hover { border-color: var(--primary); }
+  .task-item.completed { opacity: 0.72; border-color: rgba(16, 185, 129, 0.35); background: rgba(16, 185, 129, 0.04); }
+  .task-item.completed .task-info h4 { text-decoration: line-through; color: var(--text-muted); }
+
+  .task-left { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; }
+  .task-check-btn {
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    border: 2px solid var(--border); background: var(--surface);
+    color: transparent; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.2s; font-size: 12px;
+  }
+  .task-check-btn:hover { border-color: #10b981; }
+  .task-item.completed .task-check-btn {
+    background: #10b981; border-color: #10b981; color: #fff;
+  }
+
+  .task-info { min-width: 0; }
+  .task-info h4 { font-size: 15px; font-weight: 700; color: var(--text-main); margin: 0 0 4px; word-break: break-word; }
+  .task-info p { font-size: 12px; color: var(--text-muted); font-weight: 600; margin: 0; display: flex; align-items: center; gap: 8px; }
+
+  .task-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .priority-badge { font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 8px; text-transform: uppercase; }
+  .priority-high { background: rgba(239, 68, 68, 0.12); color: #ef4444; }
+  .priority-medium { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
+  .priority-low { background: rgba(16, 185, 129, 0.12); color: #10b981; }
+
+  .task-del-btn {
+    width: 32px; height: 32px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--text-muted); cursor: pointer; display: flex;
+    align-items: center; justify-content: center; transition: 0.2s;
+  }
+  .task-del-btn:hover { background: rgba(239, 68, 68, 0.12); color: #ef4444; border-color: rgba(239, 68, 68, 0.3); }
+
+  .add-task-card { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 24px; position: sticky; top: 20px; height: fit-content; }
+  .form-group { margin-bottom: 15px; }
+  .form-group label { display: block; font-size: 13px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; }
+  .form-control { width: 100%; padding: 11px 13px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text-main); font-size: 14px; }
+  .form-control:focus { outline: none; border-color: var(--primary); }
+</style>
+
+<div class="planner-container">
+  <!-- LIVE PROGRESS SUMMARY -->
+  <div class="progress-card">
+    <div class="progress-meta">
+      <h3><i class="fas fa-bullseye" style="color:var(--primary);"></i> {{ 'تقدم المذاكرة' if is_ar else 'Study Progress' }}</h3>
+      <p id="progressCountText">
+        {{ done_tasks }} / {{ total_tasks }} {{ 'مهام مكتملة' if is_ar else 'tasks completed' }}
+      </p>
+    </div>
+    <div class="progress-bar-outer">
+      <div class="progress-bar-fill" id="progressBarFill" style="width: {{ pct_done }}%;"></div>
+    </div>
+    <div class="progress-pct" id="progressPct">{{ pct_done }}%</div>
+  </div>
+
+  <div class="planner-grid">
+    <div class="task-panel">
+      <div class="section-title">
+        <i class="fas fa-tasks" style="color:var(--primary);"></i>
+        {{ 'مهام المذاكرة' if is_ar else 'Study Tasks' }}
+      </div>
+
+      <div id="taskList">
+        {% for t in tasks %}
+        {% set is_done = (t.status == 'Completed') %}
+        <div class="task-item {% if is_done %}completed{% endif %}" id="task-row-{{ t.id }}" data-status="{{ t.status or 'Pending' }}">
+          <div class="task-left">
+            <button type="button" class="task-check-btn" onclick="toggleTask({{ t.id }})"
+              title="{{ 'تحديد كمكتملة' if is_ar else 'Toggle completed' }}">
+              <i class="fas fa-check"></i>
+            </button>
+            <div class="task-info">
+              <h4>{{ t.title }}</h4>
+              <p>
+                <span><i class="far fa-calendar"></i> {{ t.deadline }}</span>
+                <span class="task-status-lbl">• {{ ('مكتملة' if is_ar else 'Completed') if is_done else ('قيد التنفيذ' if is_ar else 'Pending') }}</span>
+              </p>
+            </div>
+          </div>
+          <div class="task-actions">
+            <span class="priority-badge priority-{{ (t.priority or 'Medium')|lower }}">{{ t.priority or 'Medium' }}</span>
+            <button type="button" class="task-del-btn" onclick="editTask({{ t.id }}, {{ t.title|tojson }}, {{ (t.deadline|string)|tojson }}, {{ (t.priority or 'Medium')|tojson }})"
+              title="{{ 'تعديل المهمة' if is_ar else 'Edit task' }}">
+              <i class="fas fa-pen"></i>
+            </button>
+            <button type="button" class="task-del-btn" onclick="deleteTask({{ t.id }})"
+              title="{{ 'حذف المهمة' if is_ar else 'Delete task' }}">
+              <i class="fas fa-trash-alt"></i>
+            </button>
+          </div>
+        </div>
+        {% endfor %}
+
+        {% if not tasks %}
+        <div id="emptyState" style="text-align:center; padding: 40px; color:var(--text-muted);">
+          <i class="fas fa-clipboard-list" style="font-size: 42px; opacity: 0.25; margin-bottom: 14px; display:block;"></i>
+          {{ 'لا توجد مهام حالية. ابدأ بإضافة مهامك!' if is_ar else 'No tasks yet. Start planning your week!' }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="add-task-card">
+      <div class="section-title" style="font-size:16px; margin-bottom:18px;">
+        <i class="fas fa-plus-circle" style="color:var(--primary);"></i>
+        {{ 'إضافة مهمة جديدة' if is_ar else 'Add New Task' }}
+      </div>
+      <div class="form-group">
+        <label>{{ 'اسم المهمة' if is_ar else 'Task Title' }}</label>
+        <input type="text" id="taskTitle" class="form-control"
+          placeholder="{{ 'مثال: مراجعة الفصل الثالث' if is_ar else 'e.g. Chapter 3 Summary' }}">
+      </div>
+      <div class="form-group">
+        <label>{{ 'الموعد النهائي' if is_ar else 'Deadline' }}</label>
+        <input type="date" id="taskDeadline" class="form-control">
+      </div>
+      <div class="form-group">
+        <label>{{ 'الأولوية' if is_ar else 'Priority' }}</label>
+        <select id="taskPriority" class="form-control">
+          <option value="High">{{ 'عالية (High)' if is_ar else 'High' }}</option>
+          <option value="Medium" selected>{{ 'متوسطة (Medium)' if is_ar else 'Medium' }}</option>
+          <option value="Low">{{ 'منخفضة (Low)' if is_ar else 'Low' }}</option>
+        </select>
+      </div>
+      <button type="button" class="btn-primary" onclick="addTask()" style="width:100%; justify-content:center; margin-top:8px;">
+        <i class="fas fa-plus"></i> {{ 'إضافة المهمة' if is_ar else 'Add Task' }}
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const CSRF_TOKEN = "{{ csrf_token() }}";
+  const IS_AR = {{ 'true' if is_ar else 'false' }};
+
+  // Pre-fill deadline with tomorrow's date for faster entry
+  (function initDate() {
+    const dl = document.getElementById('taskDeadline');
+    if (dl && !dl.value) {
+      const tomorrow = new Date(Date.now() + 86400000);
+      dl.value = tomorrow.toISOString().split('T')[0];
+    }
+  })();
+
+  function refreshProgressBar() {
+    const items = document.querySelectorAll('#taskList .task-item');
+    const total = items.length;
+    let done = 0;
+    items.forEach(el => {
+      if (el.classList.contains('completed')) done++;
+    });
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    document.getElementById('progressBarFill').style.width = pct + '%';
+    document.getElementById('progressPct').textContent = pct + '%';
+    document.getElementById('progressCountText').textContent =
+      `${done} / ${total} ${IS_AR ? 'مهام مكتملة' : 'tasks completed'}`;
+  }
+
+  async function addTask() {
+    const title = document.getElementById('taskTitle').value.trim();
+    const deadline = document.getElementById('taskDeadline').value;
+    const priority = document.getElementById('taskPriority').value;
+
+    if (!title || !deadline) {
+      alert(IS_AR ? 'يرجى إدخال اسم المهمة والموعد النهائي.' : 'Please fill in both task title and deadline.');
+      return;
+    }
+
+    const res = await fetch('/api/study/add-task', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': CSRF_TOKEN
+      },
+      body: JSON.stringify({ title, deadline, priority })
+    });
+
+    if (res.ok) {
+      location.reload();
+    } else {
+      alert(IS_AR ? 'تعذر إضافة المهمة، حاول مرة أخرى.' : 'Could not add task. Please try again.');
+    }
+  }
+
+  async function toggleTask(taskId) {
+    const res = await fetch(`/api/study/toggle-task/${taskId}`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF_TOKEN }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const row = document.getElementById(`task-row-${taskId}`);
+    if (row) {
+      const isDone = data.status === 'Completed';
+      row.classList.toggle('completed', isDone);
+      row.dataset.status = data.status;
+      const lbl = row.querySelector('.task-status-lbl');
+      if (lbl) {
+        lbl.textContent = '• ' + (isDone ? (IS_AR ? 'مكتملة' : 'Completed') : (IS_AR ? 'قيد التنفيذ' : 'Pending'));
+      }
+      refreshProgressBar();
+    }
+  }
+
+  async function editTask(taskId, currentTitle, currentDeadline, currentPriority) {
+    const newTitle = prompt(IS_AR ? 'تعديل اسم المهمة:' : 'Edit task title:', currentTitle);
+    if (newTitle === null || !newTitle.trim()) return;
+    const newDeadline = prompt(IS_AR ? 'تعديل الموعد (YYYY-MM-DD):' : 'Edit deadline (YYYY-MM-DD):', currentDeadline) || currentDeadline;
+    const res = await fetch(`/api/study/edit-task/${taskId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': CSRF_TOKEN
+      },
+      body: JSON.stringify({ title: newTitle.trim(), deadline: newDeadline.trim(), priority: currentPriority })
+    });
+    if (res.ok) location.reload();
+  }
+
+  async function deleteTask(taskId) {
+    const res = await fetch(`/api/study/delete-task/${taskId}`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF_TOKEN }
+    });
+    if (!res.ok) return;
+    const row = document.getElementById(`task-row-${taskId}`);
+    if (row) {
+      row.remove();
+      refreshProgressBar();
+      if (document.querySelectorAll('#taskList .task-item').length === 0) {
+        location.reload();
+      }
+    }
+  }
+
+  document.getElementById('taskTitle')?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') addTask();
+  });
+</script>
+{% endblock %}

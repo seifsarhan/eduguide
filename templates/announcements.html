@@ -1,0 +1,100 @@
+{% extends base_layout %}
+
+{% block title %}EDUGUIDE | Broadcast Announcements{% endblock %}
+{% block page_title %}{{ 'الإعلانات والإشعارات الجماعية' if session.get('lang', 'en') == 'ar' else 'Broadcast Announcements' }}{% endblock %}
+
+{% block content %}
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+<style>
+  .ann-grid { display:grid; grid-template-columns:1fr 1.3fr; gap:24px; }
+  @media (max-width:960px) { .ann-grid { grid-template-columns:1fr; } }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:24px; }
+  .card h2 { font-size:17px; font-weight:800; margin-bottom:16px; display:flex; align-items:center; gap:9px; }
+  .fg { margin-bottom:14px; }
+  .fg label { display:block; font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:6px; }
+  .fg input, .fg select, .fg textarea { width:100%; padding:10px 13px; border-radius:10px; border:1px solid var(--border); background:var(--bg); color:var(--text-main); font-family:inherit; font-weight:600; font-size:13.5px; }
+  .btn-send { background:var(--primary); color:#fff; border:none; padding:12px 20px; border-radius:11px; font-weight:800; font-size:14px; cursor:pointer; width:100%; }
+  .ann-item { border:1px solid var(--border); border-radius:14px; padding:16px; margin-bottom:12px; background:var(--bg); }
+  .ann-item h4 { font-size:15px; font-weight:800; margin-bottom:6px; color:var(--text-main); }
+  .ann-item p { font-size:13.5px; color:var(--text-muted); margin-bottom:10px; line-height:1.5; }
+  .ann-meta { display:flex; gap:12px; flex-wrap:wrap; font-size:12px; font-weight:700; color:var(--text-muted); }
+  .tag-p { padding:3px 8px; border-radius:6px; font-size:11px; font-weight:800; background:rgba(79,70,229,0.1); color:var(--primary); }
+  .tag-p.urgent { background:rgba(239,68,68,0.12); color:#ef4444; }
+</style>
+
+<div class="ann-grid">
+  <div class="card">
+    <h2><i class="fas fa-bullhorn" style="color:var(--primary);"></i> {{ 'إرسال إعلان جماعي للطلاب' if is_ar else 'Compose Broadcast Announcement' }}</h2>
+    <form method="POST">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="fg"><label>{{ 'عنوان الإعلان' if is_ar else 'Announcement Title' }}</label><input type="text" name="title" placeholder="Midterm Exam Schedule Update" required></div>
+      <div class="fg"><label>{{ 'نطاق الإرسال' if is_ar else 'Target Audience' }}</label>
+        <select name="target_scope" id="scopeSel" onchange="toggleTarget()">
+          {% if session.get('role') == 'system' %}
+            <option value="all">{{ 'جميع طلاب المنصة' if is_ar else 'All Students (Platform-wide)' }}</option>
+            <option value="university">{{ 'جامعة محددة' if is_ar else 'Specific University' }}</option>
+            <option value="faculty">{{ 'كلية محددة' if is_ar else 'Specific Faculty' }}</option>
+          {% endif %}
+          <option value="course">{{ 'طلاب مقرر محدد' if is_ar else 'Students in Specific Course' }}</option>
+        </select>
+      </div>
+      <div class="fg" id="targetValWrap" style="display:none;">
+        <label id="targetValLabel">{{ 'اختر الهدف' if is_ar else 'Select Target' }}</label>
+        <select name="target_value" id="targetValSel"></select>
+      </div>
+      <div class="fg"><label>{{ 'الأولوية' if is_ar else 'Priority' }}</label>
+        <select name="priority">
+          <option value="normal">{{ 'عادي' if is_ar else 'Normal' }}</option>
+          <option value="urgent">{{ 'عاجل / هام' if is_ar else 'Urgent / High Priority' }}</option>
+        </select>
+      </div>
+      <div class="fg"><label>{{ 'نص الإعلان' if is_ar else 'Message' }}</label><textarea name="message" rows="4" required placeholder="Write the announcement that will appear in students' notification bells..."></textarea></div>
+      <button type="submit" class="btn-send"><i class="fas fa-paper-plane"></i> {{ 'بث الإعلان الآن' if is_ar else 'Broadcast Push Notification' }}</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2><i class="fas fa-history" style="color:var(--primary);"></i> {{ 'سجل الإعلانات المرسلة' if is_ar else 'Broadcast History' }}</h2>
+    {% for a in history %}
+    <div class="ann-item">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <h4>{{ a.title }}</h4>
+        <span class="tag-p {{ 'urgent' if a.priority == 'urgent' else '' }}">{{ a.priority|upper }}</span>
+      </div>
+      <p>{{ a.message }}</p>
+      <div class="ann-meta">
+        <span><i class="fas fa-user"></i> {{ a.sender_name }}</span>
+        <span><i class="fas fa-bullseye"></i> {{ a.target_scope }} {{ '(' ~ a.target_value ~ ')' if a.target_value else '' }}</span>
+        <span><i class="fas fa-users"></i> {{ a.recipients_count }} {{ 'مستلم' if is_ar else 'recipients' }}</span>
+        <span><i class="fas fa-clock"></i> {{ a.created_at }}</span>
+      </div>
+    </div>
+    {% else %}
+    <p style="text-align:center; color:var(--text-muted); padding:30px;">{{ 'لم يتم إرسال إعلانات بعد.' if is_ar else 'No broadcasts sent yet.' }}</p>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+  const universities = {{ universities | tojson | safe }};
+  const faculties = {{ faculties | tojson | safe }};
+  const courses = {{ courses | tojson | safe }};
+
+  function toggleTarget() {
+    const scope = document.getElementById('scopeSel').value;
+    const wrap = document.getElementById('targetValWrap');
+    const sel = document.getElementById('targetValSel');
+    sel.innerHTML = '';
+    if (scope === 'all') { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+    if (scope === 'university') {
+      universities.forEach(u => sel.innerHTML += `<option value="${u.id}">${u.name}</option>`);
+    } else if (scope === 'faculty') {
+      faculties.forEach(f => sel.innerHTML += `<option value="${f}">${f}</option>`);
+    } else if (scope === 'course') {
+      courses.forEach(c => sel.innerHTML += `<option value="${c.course_id}">${c.course_id} — ${c.name}</option>`);
+    }
+  }
+  toggleTarget();
+</script>
+{% endblock %}

@@ -1,0 +1,165 @@
+{% extends "system_layout.html" %}
+
+{% block title %}EDUGUIDE | System Courses{% endblock %}
+{% block page_title %}{{ 'إدارة الكورسات والمقررات' if session.get('lang', 'en') == 'ar' else 'Courses Management' }}{% endblock %}
+
+{% block content %}
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+<style>
+  .sys-top { display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px; margin-bottom:24px; }
+  .sys-top h1 { font-size:26px; font-weight:800; color:var(--text-main); margin-bottom:6px; }
+  .sys-top p { color:var(--text-muted); font-size:14px; font-weight:500; }
+  .btn-sys { padding:10px 16px; border-radius:11px; border:1px solid var(--border); background:var(--surface); color:var(--text-main); font-weight:700; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; text-decoration:none; }
+  .btn-sys.primary { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .btn-sys.danger { color:#ef4444; border-color:rgba(239,68,68,0.25); }
+  .toolbar { display:flex; gap:12px; margin-bottom:20px; }
+  .toolbar input { flex:1; padding:10px 14px; border-radius:10px; border:1px solid var(--border); background:var(--surface); color:var(--text-main); font-family:inherit; font-weight:600; font-size:13px; }
+  .table-panel { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:20px; overflow-x:auto; }
+  .data-table { width:100%; border-collapse:collapse; }
+  .data-table th { text-align:left; padding:12px 14px; font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; border-bottom:1px solid var(--border); }
+  .data-table td { padding:14px; font-size:13.5px; font-weight:600; color:var(--text-main); border-bottom:1px solid var(--border); }
+  .data-table tr:last-child td { border-bottom:none; }
+  [dir="rtl"] .data-table th { text-align:right; }
+  .badge-credit { background:rgba(79,70,229,0.1); color:var(--primary); padding:4px 10px; border-radius:8px; font-weight:800; font-size:12px; }
+  .modal-bg { display:none; position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:3000; align-items:center; justify-content:center; padding:20px; }
+  .modal-bg.open { display:flex; }
+  .modal-box { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:28px; width:100%; max-width:520px; }
+  .modal-box h3 { font-size:18px; font-weight:800; margin-bottom:16px; }
+  .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .form-field { margin-bottom:10px; }
+  .form-field.full { grid-column:1 / -1; }
+  .form-field label { display:block; font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:6px; }
+  .form-field input, .form-field select { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--bg); color:var(--text-main); font-family:inherit; font-weight:600; font-size:13.5px; }
+  .modal-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:16px; }
+</style>
+
+<div class="sys-top">
+  <div>
+    <h1>{{ 'سجل المقررات الدراسية' if is_ar else 'Academic Courses Catalog' }}</h1>
+    <p>{{ 'إدارة المقررات، الساعات المعتمدة، السعة، وأعضاء هيئة التدريس' if is_ar else 'Add, edit, and assign courses, credit hours, capacities, and instructors.' }}</p>
+  </div>
+  <button type="button" class="btn-sys primary" onclick="openModal('addCourseModal')">
+    <i class="fas fa-plus"></i> {{ 'إضافة مقرر' if is_ar else 'Add Course' }}
+  </button>
+</div>
+
+<form class="toolbar" method="GET" action="{{ url_for('system_courses') }}">
+  <input type="text" name="q" value="{{ q or '' }}" placeholder="{{ 'ابحث بكود المقرر أو الاسم...' if is_ar else 'Search by course code or title...' }}">
+  <button type="submit" class="btn-sys primary"><i class="fas fa-search"></i> {{ 'بحث' if is_ar else 'Search' }}</button>
+</form>
+
+<div class="table-panel">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>{{ 'الكود' if is_ar else 'Code' }}</th>
+        <th>{{ 'اسم المقرر' if is_ar else 'Course Name' }}</th>
+        <th>{{ 'القسم' if is_ar else 'Department' }}</th>
+        <th>{{ 'المحاضر' if is_ar else 'Instructor' }}</th>
+        <th>{{ 'الفصل' if is_ar else 'Semester' }}</th>
+        <th>{{ 'الساعات' if is_ar else 'Credits' }}</th>
+        <th>{{ 'إجراءات' if is_ar else 'Actions' }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in courses %}
+      <tr>
+        <td style="color:var(--primary); font-weight:800;">{{ c.course_id }}</td>
+        <td>{{ c.name }}</td>
+        <td style="color:var(--text-muted);">{{ c.dept_name or 'N/A' }}</td>
+        <td style="color:var(--text-muted);">{{ c.instructor_name }}</td>
+        <td>{{ c.semester }} (Y{{ c.year_level }})</td>
+        <td><span class="badge-credit">{{ c.credit_hours }} {{ 'س' if is_ar else 'hrs' }}</span></td>
+        <td>
+          <div style="display:flex; gap:6px;">
+            <button type="button" class="btn-sys" style="padding:6px 10px; font-size:12px;"
+              onclick="openEditCourse('{{ c.course_id }}', '{{ (c.name or '')|e }}', '{{ c.dept_id or 1 }}', '{{ c.year_level or 1 }}', '{{ c.instructor_id or 1 }}', '{{ c.credit_hours or 3 }}', '{{ c.semester or 'Fall' }}', '{{ c.max_capacity or 100 }}')">
+              <i class="fas fa-edit"></i>
+            </button>
+            <form method="POST" action="{{ url_for('system_delete_course', course_id=c.course_id) }}" onsubmit="return confirm('Delete course {{ c.course_id }}?');">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn-sys danger" style="padding:6px 10px; font-size:12px;"><i class="fas fa-trash"></i></button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">{{ 'لا يوجد كورسات مسجلة' if is_ar else 'No courses found.' }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="modal-bg" id="addCourseModal">
+  <div class="modal-box">
+    <h3>{{ 'إضافة مقرر دراسي جديد' if is_ar else 'Add New Course' }}</h3>
+    <form method="POST" action="{{ url_for('system_add_course') }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="form-grid">
+        <div class="form-field"><label>{{ 'كود المقرر' if is_ar else 'Course Code' }}</label><input type="text" name="course_id" placeholder="CS301" required></div>
+        <div class="form-field"><label>{{ 'الساعات المعتمدة' if is_ar else 'Credit Hours' }}</label><input type="number" name="credit_hours" value="3" min="1" max="6" required></div>
+        <div class="form-field full"><label>{{ 'اسم المقرر' if is_ar else 'Course Name' }}</label><input type="text" name="name" required></div>
+        <div class="form-field"><label>{{ 'القسم' if is_ar else 'Department' }}</label>
+          <select name="dept_id">{% for d in departments %}<option value="{{ d.dept_id }}">{{ d.name }}</option>{% endfor %}</select>
+        </div>
+        <div class="form-field"><label>{{ 'المحاضر' if is_ar else 'Instructor' }}</label>
+          <select name="instructor_id">{% for ins in instructors %}<option value="{{ ins.instructor_id }}">{{ ins.full_name }}</option>{% endfor %}</select>
+        </div>
+        <div class="form-field"><label>{{ 'الفصل الدراسي' if is_ar else 'Semester' }}</label>
+          <select name="semester"><option value="Fall">Fall</option><option value="Spring">Spring</option><option value="Summer">Summer</option></select>
+        </div>
+        <div class="form-field"><label>{{ 'السنة الدراسية' if is_ar else 'Year Level' }}</label><input type="number" name="year_level" value="1" min="1" max="5"></div>
+        <div class="form-field full"><label>{{ 'الحد الأقصى للمقاعد' if is_ar else 'Max Seat Capacity' }}</label><input type="number" name="max_capacity" value="120" min="10"></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-sys" onclick="closeModal('addCourseModal')">{{ 'إلغاء' if is_ar else 'Cancel' }}</button>
+        <button type="submit" class="btn-sys primary">{{ 'حفظ المقرر' if is_ar else 'Save Course' }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-bg" id="editCourseModal">
+  <div class="modal-box">
+    <h3>{{ 'تعديل مقرر دراسي' if is_ar else 'Edit Course' }}</h3>
+    <form method="POST" id="editCourseForm">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="form-grid">
+        <div class="form-field full"><label>{{ 'اسم المقرر' if is_ar else 'Course Name' }}</label><input type="text" name="name" id="ec_name" required></div>
+        <div class="form-field"><label>{{ 'القسم' if is_ar else 'Department' }}</label>
+          <select name="dept_id" id="ec_dept">{% for d in departments %}<option value="{{ d.dept_id }}">{{ d.name }}</option>{% endfor %}</select>
+        </div>
+        <div class="form-field"><label>{{ 'المحاضر' if is_ar else 'Instructor' }}</label>
+          <select name="instructor_id" id="ec_ins">{% for ins in instructors %}<option value="{{ ins.instructor_id }}">{{ ins.full_name }}</option>{% endfor %}</select>
+        </div>
+        <div class="form-field"><label>{{ 'الساعات' if is_ar else 'Credit Hours' }}</label><input type="number" name="credit_hours" id="ec_hrs" min="1" max="6"></div>
+        <div class="form-field"><label>{{ 'الفصل' if is_ar else 'Semester' }}</label>
+          <select name="semester" id="ec_sem"><option value="Fall">Fall</option><option value="Spring">Spring</option><option value="Summer">Summer</option></select>
+        </div>
+        <div class="form-field"><label>{{ 'السنة' if is_ar else 'Year Level' }}</label><input type="number" name="year_level" id="ec_yr" min="1" max="5"></div>
+        <div class="form-field"><label>{{ 'السعة' if is_ar else 'Max Capacity' }}</label><input type="number" name="max_capacity" id="ec_cap" min="10"></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-sys" onclick="closeModal('editCourseModal')">{{ 'إلغاء' if is_ar else 'Cancel' }}</button>
+        <button type="submit" class="btn-sys primary">{{ 'تحديث' if is_ar else 'Update' }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openModal(id) { document.getElementById(id).classList.add('open'); }
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+  function openEditCourse(code, name, dept, yr, ins, hrs, sem, cap) {
+    document.getElementById('editCourseForm').action = '/system/courses/' + encodeURIComponent(code) + '/edit';
+    document.getElementById('ec_name').value = name;
+    document.getElementById('ec_dept').value = dept;
+    document.getElementById('ec_yr').value = yr;
+    document.getElementById('ec_ins').value = ins;
+    document.getElementById('ec_hrs').value = hrs;
+    document.getElementById('ec_sem').value = sem;
+    document.getElementById('ec_cap').value = cap;
+    openModal('editCourseModal');
+  }
+</script>
+{% endblock %}

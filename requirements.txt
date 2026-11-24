@@ -1,0 +1,11 @@
+flask
+flask-cors
+pymysql
+groq
+google-genai
+werkzeug
+python-dotenv
+requests
+gunicorn
+PyPDF2
+cryptography

@@ -1,0 +1,148 @@
+{% extends "system_layout.html" %}
+
+{% block title %}EDUGUIDE | Timetable & Exam Scheduler{% endblock %}
+{% block page_title %}{{ 'إدارة الجداول والامتحانات' if session.get('lang', 'en') == 'ar' else 'Timetable & Exam Scheduler' }}{% endblock %}
+
+{% block content %}
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+<style>
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:24px; }
+  @media (max-width:960px) { .grid-2 { grid-template-columns:1fr; } }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:22px; overflow-x:auto; }
+  .card h2 { font-size:16.5px; font-weight:800; margin-bottom:14px; display:flex; align-items:center; gap:9px; }
+  .fg { margin-bottom:10px; }
+  .fg label { display:block; font-size:11.5px; font-weight:700; color:var(--text-muted); margin-bottom:4px; }
+  .fg input, .fg select { width:100%; padding:9px 12px; border-radius:9px; border:1px solid var(--border); background:var(--bg); color:var(--text-main); font-family:inherit; font-weight:600; font-size:13px; }
+  .row-2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .btn-go { background:var(--primary); color:#fff; border:none; padding:11px 16px; border-radius:10px; font-weight:800; font-size:13px; cursor:pointer; width:100%; margin-top:4px; }
+  .btn-del { background:rgba(239,68,68,0.1); color:#ef4444; border:none; padding:5px 9px; border-radius:7px; cursor:pointer; }
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; padding:9px 10px; font-size:11px; color:var(--text-muted); text-transform:uppercase; border-bottom:1px solid var(--border); }
+  td { padding:10px; font-size:12.5px; font-weight:600; border-bottom:1px solid var(--border); }
+  [dir="rtl"] th { text-align:right; }
+</style>
+
+<div class="grid-2">
+  <!-- ADD LECTURE SCHEDULE -->
+  <div class="card">
+    <h2><i class="fas fa-clock" style="color:var(--primary);"></i> {{ 'إضافة محاضرة للجدول' if is_ar else 'Add Lecture Timetable Slot' }}</h2>
+    <form method="POST" action="{{ url_for('system_add_schedule') }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="row-2">
+        <div class="fg"><label>{{ 'النطاق' if is_ar else 'Assign To' }}</label>
+          <select name="scope" id="scScope" onchange="fillTargets('scScope','scTarget')">
+            <option value="student">{{ 'طالب محدد' if is_ar else 'Single Student' }}</option>
+            <option value="faculty">{{ 'كلية كاملة' if is_ar else 'Entire Faculty' }}</option>
+          </select>
+        </div>
+        <div class="fg"><label>{{ 'الهدف' if is_ar else 'Target' }}</label><select name="target_id" id="scTarget"></select></div>
+      </div>
+      <div class="fg"><label>{{ 'المادة' if is_ar else 'Subject' }}</label>
+        <input type="text" name="subject_name" list="coursesList" placeholder="Financial Accounting I" required>
+      </div>
+      <div class="row-2">
+        <div class="fg"><label>{{ 'اليوم' if is_ar else 'Day' }}</label>
+          <select name="day_name">{% for d in ['Saturday','Sunday','Monday','Tuesday','Wednesday','Thursday'] %}<option value="{{ d }}">{{ d }}</option>{% endfor %}</select>
+        </div>
+        <div class="fg"><label>{{ 'القاعة / المدرج' if is_ar else 'Room / Hall' }}</label><input type="text" name="room" value="Hall A-102" required></div>
+      </div>
+      <div class="row-2">
+        <div class="fg"><label>{{ 'من' if is_ar else 'Start Time' }}</label><input type="text" name="start_time" value="10:00 AM" required></div>
+        <div class="fg"><label>{{ 'إلى' if is_ar else 'End Time' }}</label><input type="text" name="end_time" value="12:00 PM" required></div>
+      </div>
+      <div class="row-2">
+        <div class="fg"><label>{{ 'المحاضر' if is_ar else 'Doctor' }}</label><input type="text" name="doctor_name" value="Dr. Ahmed El-Sayed"></div>
+        <div class="fg"><label>{{ 'النوع' if is_ar else 'Type' }}</label><select name="type"><option value="Lecture">Lecture</option><option value="Section">Section</option><option value="Lab">Lab</option></select></div>
+      </div>
+      <button type="submit" class="btn-go"><i class="fas fa-plus"></i> {{ 'إضافة للجدول' if is_ar else 'Publish Lecture Slot' }}</button>
+    </form>
+  </div>
+
+  <!-- ADD EXAM SCHEDULE -->
+  <div class="card">
+    <h2><i class="fas fa-file-alt" style="color:#ef4444;"></i> {{ 'جدولة لجنة امتحان' if is_ar else 'Schedule Exam & Hall' }}</h2>
+    <form method="POST" action="{{ url_for('system_add_exam') }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="row-2">
+        <div class="fg"><label>{{ 'النطاق' if is_ar else 'Assign To' }}</label>
+          <select name="scope" id="exScope" onchange="fillTargets('exScope','exTarget')">
+            <option value="student">{{ 'طالب محدد' if is_ar else 'Single Student' }}</option>
+            <option value="faculty">{{ 'كلية كاملة' if is_ar else 'Entire Faculty' }}</option>
+          </select>
+        </div>
+        <div class="fg"><label>{{ 'الهدف' if is_ar else 'Target' }}</label><select name="target_id" id="exTarget"></select></div>
+      </div>
+      <div class="fg"><label>{{ 'المادة' if is_ar else 'Exam Subject' }}</label><input type="text" name="subject_name" list="coursesList" placeholder="Corporate Finance Final" required></div>
+      <div class="row-2">
+        <div class="fg"><label>{{ 'تاريخ الامتحان' if is_ar else 'Exam Date' }}</label><input type="date" name="exam_date" required></div>
+        <div class="fg"><label>{{ 'الوقت' if is_ar else 'Exam Time' }}</label><input type="text" name="exam_time" value="09:00 AM - 11:00 AM" required></div>
+      </div>
+      <div class="fg"><label>{{ 'مقر اللجنة' if is_ar else 'Exam Hall / Location' }}</label><input type="text" name="location" value="Main Examination Hall B" required></div>
+      <p style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">{{ 'سيتم إرسال إشعار فوري تلقائياً لكل طالب بموعد ومكان اللجنة.' if is_ar else 'Automatically pushes a real-time notification to every assigned student.' }}</p>
+      <button type="submit" class="btn-go" style="background:#ef4444;"><i class="fas fa-calendar-plus"></i> {{ 'اعتماد وإرسال إشعار' if is_ar else 'Schedule Exam & Notify' }}</button>
+    </form>
+  </div>
+</div>
+
+<datalist id="coursesList">{% for c in courses %}<option value="{{ c.name }}">{% endfor %}</datalist>
+
+<div class="grid-2">
+  <div class="card">
+    <h2>{{ 'أحدث مواعيد المحاضرات' if is_ar else 'Recent Lecture Slots' }}</h2>
+    <table>
+      <thead><tr><th>{{ 'الطالب' if is_ar else 'Student' }}</th><th>{{ 'المادة' if is_ar else 'Subject' }}</th><th>{{ 'الموعد والقاعة' if is_ar else 'Day / Hall' }}</th><th></th></tr></thead>
+      <tbody>
+        {% for s in schedules %}
+        <tr>
+          <td>{{ s.student_code or s.user_id }}</td>
+          <td>{{ s.subject_name }}</td>
+          <td style="color:var(--text-muted);">{{ s.day_name }} {{ s.start_time }} · {{ s.room }}</td>
+          <td>
+            <form method="POST" action="{{ url_for('system_delete_schedule', sched_id=s.id) }}">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn-del"><i class="fas fa-trash"></i></button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>{{ 'أحدث لجان الامتحانات' if is_ar else 'Recent Scheduled Exams' }}</h2>
+    <table>
+      <thead><tr><th>{{ 'الطالب' if is_ar else 'Student' }}</th><th>{{ 'المادة' if is_ar else 'Subject' }}</th><th>{{ 'التاريخ واللجنة' if is_ar else 'Date / Hall' }}</th><th></th></tr></thead>
+      <tbody>
+        {% for e in exams %}
+        <tr>
+          <td>{{ e.student_code or e.user_id }}</td>
+          <td>{{ e.subject_name }}</td>
+          <td style="color:var(--text-muted);">{{ e.exam_date }} · {{ e.location }}</td>
+          <td>
+            <form method="POST" action="{{ url_for('system_delete_exam', exam_id=e.id) }}">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn-del"><i class="fas fa-trash"></i></button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const schStudents = {{ students | tojson | safe }};
+  const schFaculties = {{ faculties | tojson | safe }};
+  function fillTargets(scopeId, targetId) {
+    const sc = document.getElementById(scopeId).value;
+    const sel = document.getElementById(targetId);
+    sel.innerHTML = '';
+    if (sc === 'student') schStudents.forEach(s => sel.innerHTML += `<option value="${s.id}">${s.student_code} — ${s.full_name}</option>`);
+    else schFaculties.forEach(f => sel.innerHTML += `<option value="${f}">${f}</option>`);
+  }
+  fillTargets('scScope', 'scTarget');
+  fillTargets('exScope', 'exTarget');
+</script>
+{% endblock %}

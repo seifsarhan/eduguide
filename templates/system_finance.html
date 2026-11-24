@@ -1,0 +1,132 @@
+{% extends "system_layout.html" %}
+
+{% block title %}EDUGUIDE | University Finance & Billing{% endblock %}
+{% block page_title %}{{ 'المالية والمصروفات الدراسية' if session.get('lang', 'en') == 'ar' else 'Finance & Tuition Billing' }}{% endblock %}
+
+{% block content %}
+{% set is_ar = session.get('lang', 'en') == 'ar' %}
+<style>
+  .sys-top { display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:14px; margin-bottom:22px; }
+  .sys-top h1 { font-size:25px; font-weight:800; color:var(--text-main); margin-bottom:4px; }
+  .sys-top p { color:var(--text-muted); font-size:14px; }
+  .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:16px; margin-bottom:22px; }
+  .kpi { background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:20px; }
+  .kpi .lbl { font-size:11.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:8px; }
+  .kpi .val { font-size:24px; font-weight:800; color:var(--text-main); }
+  .btn-sys { padding:10px 16px; border-radius:11px; border:1px solid var(--border); background:var(--surface); color:var(--text-main); font-weight:700; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:7px; text-decoration:none; }
+  .btn-sys.primary { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .btn-sys.ok { background:rgba(16,185,129,0.12); color:#10b981; border-color:rgba(16,185,129,0.3); }
+  .toolbar { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px; }
+  .toolbar input, .toolbar select { padding:10px 13px; border-radius:10px; border:1px solid var(--border); background:var(--surface); color:var(--text-main); font-family:inherit; font-weight:600; font-size:13px; }
+  .toolbar input { flex:1; min-width:200px; }
+  .table-panel { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:20px; overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; padding:11px 12px; font-size:11px; color:var(--text-muted); text-transform:uppercase; border-bottom:1px solid var(--border); }
+  td { padding:13px 12px; font-size:13px; font-weight:600; border-bottom:1px solid var(--border); }
+  [dir="rtl"] th { text-align:right; }
+  .pill { padding:4px 9px; border-radius:7px; font-size:11.5px; font-weight:800; }
+  .pill.paid { background:rgba(16,185,129,0.12); color:#10b981; }
+  .pill.pending { background:rgba(245,158,11,0.15); color:#d97706; }
+  .modal-bg { display:none; position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:3000; align-items:center; justify-content:center; padding:20px; }
+  .modal-bg.open { display:flex; }
+  .modal-box { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:26px; width:100%; max-width:480px; }
+  .fg { margin-bottom:12px; }
+  .fg label { display:block; font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:5px; }
+  .fg input, .fg select { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--bg); color:var(--text-main); font-family:inherit; font-weight:600; }
+</style>
+
+<div class="sys-top">
+  <div>
+    <h1><i class="fas fa-coins" style="color:#f59e0b;"></i> {{ 'إدارة المالية والمصروفات' if is_ar else 'University Finance & Tuition Billing' }}</h1>
+    <p>{{ 'إصدار فواتير المصروفات الجماعية واعتماد التحصيل النقدي والبنكي ومراقبة الإيرادات' if is_ar else 'Issue single or bulk tuition invoices, approve cash/bank transfers, and track EGP revenue.' }}</p>
+  </div>
+  <button type="button" class="btn-sys primary" onclick="document.getElementById('invModal').classList.add('open')">
+    <i class="fas fa-file-invoice-dollar"></i> {{ 'إصدار فاتورة / مصروفات' if is_ar else 'Issue Tuition Invoice' }}
+  </button>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi"><div class="lbl">{{ 'إجمالي الفواتير' if is_ar else 'Total Billed' }}</div><div class="val">{{ "{:,.0f}".format(total_billed) }} <span style="font-size:13px; color:var(--text-muted);">EGP</span></div></div>
+  <div class="kpi"><div class="lbl">{{ 'المحصّل (المدفوع)' if is_ar else 'Total Collected' }}</div><div class="val" style="color:#10b981;">{{ "{:,.0f}".format(total_collected) }} <span style="font-size:13px;">EGP</span></div></div>
+  <div class="kpi"><div class="lbl">{{ 'المتأخرات والمعلق' if is_ar else 'Pending Arrears' }}</div><div class="val" style="color:#f59e0b;">{{ "{:,.0f}".format(total_pending) }} <span style="font-size:13px;">EGP</span></div></div>
+  <div class="kpi"><div class="lbl">{{ 'نسبة التحصيل' if is_ar else 'Collection Rate' }}</div><div class="val" style="color:var(--primary);">{{ collection_rate }}%</div></div>
+</div>
+
+<form class="toolbar" method="GET">
+  <input type="text" name="q" value="{{ q or '' }}" placeholder="{{ 'ابحث باسم الطالب أو الكود أو نوع الرسوم...' if is_ar else 'Search by student name, code, or fee type...' }}">
+  <select name="status">
+    <option value="">{{ 'كل الحالات' if is_ar else 'All Statuses' }}</option>
+    <option value="paid" {% if status_filter == 'paid' %}selected{% endif %}>{{ 'مدفوع' if is_ar else 'Paid' }}</option>
+    <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>{{ 'معلّق / غير مدفوع' if is_ar else 'Pending / Unpaid' }}</option>
+  </select>
+  <button type="submit" class="btn-sys primary"><i class="fas fa-search"></i> {{ 'بحث' if is_ar else 'Filter' }}</button>
+</form>
+
+<div class="table-panel">
+  <table>
+    <thead><tr><th>#</th><th>{{ 'الطالب' if is_ar else 'Student' }}</th><th>{{ 'الرسوم' if is_ar else 'Fee Type' }}</th><th>{{ 'المبلغ' if is_ar else 'Amount' }}</th><th>{{ 'الطريقة' if is_ar else 'Method' }}</th><th>{{ 'الحالة' if is_ar else 'Status' }}</th><th>{{ 'إجراء' if is_ar else 'Action' }}</th></tr></thead>
+    <tbody>
+      {% for p in payments %}
+      {% set is_paid = (p.payment_status or '')|lower == 'paid' %}
+      <tr>
+        <td style="color:var(--text-muted);">#{{ p.id }}</td>
+        <td>{{ p.student_name or 'Student' }} <div style="font-size:11px; color:var(--text-muted);">{{ p.student_code }}</div></td>
+        <td>{{ p.payment_type }}</td>
+        <td style="font-weight:800;">{{ "{:,.0f}".format(p.amount or 0) }} EGP</td>
+        <td style="color:var(--text-muted);">{{ p.payment_method or '-' }}</td>
+        <td><span class="pill {{ 'paid' if is_paid else 'pending' }}">{{ p.payment_status|upper }}</span></td>
+        <td>
+          {% if is_paid %}
+            <a href="{{ url_for('receipt', payment_id=p.id) }}" class="btn-sys" style="padding:6px 10px; font-size:12px;"><i class="fas fa-receipt"></i> {{ 'إيصال' if is_ar else 'Receipt' }}</a>
+          {% else %}
+            <form method="POST" action="{{ url_for('system_finance_mark_paid', payment_id=p.id) }}" style="display:inline-flex; gap:5px;">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="method" value="Cash / Treasury">
+              <button type="submit" class="btn-sys ok" style="padding:6px 10px; font-size:12px;"><i class="fas fa-check"></i> {{ 'اعتماد الدفع' if is_ar else 'Mark Paid' }}</button>
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="modal-bg" id="invModal">
+  <div class="modal-box">
+    <h3 style="margin-bottom:14px; font-weight:800;">{{ 'إصدار فاتورة مصروفات (فردي أو جماعي)' if is_ar else 'Issue Single or Bulk Tuition Invoice' }}</h3>
+    <form method="POST" action="{{ url_for('system_finance_create') }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="fg"><label>{{ 'نطاق الفاتورة' if is_ar else 'Billing Scope' }}</label>
+        <select name="scope" id="finScope" onchange="updateFinTargets()">
+          <option value="student">{{ 'طالب محدد' if is_ar else 'Single Student' }}</option>
+          <option value="faculty">{{ 'كلية كاملة (جماعي)' if is_ar else 'Entire Faculty (Bulk)' }}</option>
+          <option value="university">{{ 'جامعة كاملة (جماعي)' if is_ar else 'Entire University (Bulk)' }}</option>
+        </select>
+      </div>
+      <div class="fg"><label>{{ 'الجهة / الطالب' if is_ar else 'Select Target' }}</label><select name="target_id" id="finTarget"></select></div>
+      <div class="fg"><label>{{ 'بند الرسوم' if is_ar else 'Fee Description' }}</label><input type="text" name="payment_type" value="Fall 2026 Tuition Fees" required></div>
+      <div class="fg"><label>{{ 'المبلغ (بالجنيه المصري)' if is_ar else 'Amount (EGP)' }}</label><input type="number" name="amount" value="15000" min="1" required></div>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
+        <button type="button" class="btn-sys" onclick="document.getElementById('invModal').classList.remove('open')">{{ 'إلغاء' if is_ar else 'Cancel' }}</button>
+        <button type="submit" class="btn-sys primary">{{ 'إصدار الفواتير' if is_ar else 'Generate Invoices' }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const finStudents = {{ students | tojson | safe }};
+  const finFaculties = {{ faculties | tojson | safe }};
+  const finUnis = {{ universities | tojson | safe }};
+  function updateFinTargets() {
+    const sc = document.getElementById('finScope').value;
+    const sel = document.getElementById('finTarget');
+    sel.innerHTML = '';
+    if (sc === 'student') finStudents.forEach(s => sel.innerHTML += `<option value="${s.id}">${s.student_code} — ${s.full_name}</option>`);
+    else if (sc === 'faculty') finFaculties.forEach(f => sel.innerHTML += `<option value="${f}">${f}</option>`);
+    else finUnis.forEach(u => sel.innerHTML += `<option value="${u.id}">${u.name}</option>`);
+  }
+  updateFinTargets();
+</script>
+{% endblock %}
